@@ -6,7 +6,6 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
-    "newArchEnabled": true,
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
@@ -20,10 +19,18 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": true
+      "package": "com.antoniothessalonicense.flashcards"
     },
     "web": {
       "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "@morrowdigital/watermelondb-expo-plugin"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "cca1b2c4-8b50-4b7d-85bf-87a4278ca813"
+      }
     }
   }
 }
