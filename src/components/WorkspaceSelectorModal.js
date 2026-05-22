@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import withObservables from '@nozbe/with-observables';
-import { database } from './database';
+import { database } from '../../database';
 import { createWorkspace } from './dbServices';
 
 const WorkspaceSelectorModal = ({
@@ -343,6 +343,10 @@ const styles = StyleSheet.create({
   modalConfirmText: { color: '#FFFFFF', fontWeight: 'bold', fontSize: 14 },
 });
 
-export default withObservables([], () => ({
+import { withDatabase } from '@hypertill/db/react';
+
+const EnhancedWorkspaceSelectorModal = withObservables(['database'], ({ database }) => ({
   workspaces: database.get('workspaces').query().observe(),
 }))(WorkspaceSelectorModal);
+
+export default withDatabase(EnhancedWorkspaceSelectorModal);

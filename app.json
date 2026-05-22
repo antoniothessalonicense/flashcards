@@ -25,12 +25,26 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      "@morrowdigital/watermelondb-expo-plugin"
+      "@hypertill/db",
+      "expo-dev-client",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "kotlinVersion": "1.9.25",
+            "kotlinCompilerExtensionVersion": "1.5.15",
+            "compileSdkVersion": 35,
+            "targetSdkVersion": 35,
+            "buildToolsVersion": "35.0.0"
+          }
+        }
+      ]
     ],
     "extra": {
       "eas": {
         "projectId": "cca1b2c4-8b50-4b7d-85bf-87a4278ca813"
       }
-    }
+    },
+    "owner": "antoniothessalonicense"
   }
 }

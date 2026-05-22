@@ -52,10 +52,12 @@ const DeckList = ({ decks, onReview, onPractice }) => {
   );
 };
 
+import { withDatabase } from '@hypertill/db/react';
+
 // Conecta a Lista de Decks a uma Query que escuta a tabela 'decks' em tempo real
-const EnhancedDeckList = withObservables([], () => ({
-  decks: database.collections.get('decks').query().observe(),
-}))(DeckList);
+const EnhancedDeckList = withDatabase(withObservables(['database'], ({ database }) => ({
+  decks: database.get('decks').query().observe(),
+}))(DeckList));
 
 /**
  * Tela de Listagem (Container)

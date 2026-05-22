@@ -1,5 +1,5 @@
-import { Model } from '@nozbe/watermelondb';
-import { text, date, readonly } from '@nozbe/watermelondb/decorators';
+import { Model } from '@hypertill/db';
+import { text, date, readonly } from '@hypertill/db/decorators';
 
 export default class Workspace extends Model {
   static table = 'workspaces';

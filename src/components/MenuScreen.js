@@ -8,6 +8,8 @@ export const MENU_ITEMS = [
   { icon: '📚', label: 'Meus Conjuntos', id: 'list' },
   { icon: '📊', label: 'Estatísticas', id: 'statistics' },
   { icon: '🔔', label: 'Notificações', id: 'notifications' },
+  { icon: '📥', label: 'Importar', id: 'import' },
+  { icon: '☁️', label: 'Backup no Google Docs', id: 'backup_docs' },
   null,
   { icon: '⚙️', label: 'Configurações', id: 'settings' },
   { icon: '🌙', label: 'Alternar para o Tema Noturno', special: true },

@@ -1,4 +1,4 @@
-import { synchronize } from '@nozbe/watermelondb/sync';
+import { synchronize } from '@hypertill/db/sync';
 import { database } from './database';
 
 /**
@@ -47,6 +47,6 @@ export async function syncDatabase() {
     sendCreatedAsUpdated: true,
     
     // Ajuda a depurar gargalos na sincronização dos seus 25k cards (remova em PRD)
-    log: __DEV__ ? console.log : undefined,
+    log: process.env.NODE_ENV === 'development' ? console.log : undefined,
   });
 }

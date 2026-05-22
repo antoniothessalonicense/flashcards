@@ -1,5 +1,5 @@
-import { Model } from '@nozbe/watermelondb';
-import { field, text, date, relation, readonly } from '@nozbe/watermelondb/decorators';
+import { Model } from '@hypertill/db';
+import { field, text, date, relation, readonly } from '@hypertill/db/decorators';
 
 export default class Card extends Model {
   static table = 'cards';

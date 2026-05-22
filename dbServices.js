@@ -3,13 +3,15 @@ import { database } from './database';
 /**
  * Cria um novo Baralho (Deck)
  */
-export async function createDeck(title, description = '', targetReviewsPerDay = 20) {
+export async function createDeck(title, description = '', targetReviewsPerDay = 20, frontLanguage = 'pt-BR', backLanguage = 'en-US') {
   return await database.write(async () => {
     return await database.get('decks').create(deck => {
       deck.title = title;
       deck.description = description;
       deck.targetReviewsPerDay = targetReviewsPerDay;
       deck.totalReviews = 0;
+      deck.frontLanguage = frontLanguage;
+      deck.backLanguage = backLanguage;
     });
   });
 }
@@ -17,12 +19,14 @@ export async function createDeck(title, description = '', targetReviewsPerDay = 
 /**
  * Atualiza os dados de um Baralho existente
  */
-export async function updateDeck(deckId, title, description) {
+export async function updateDeck(deckId, title, description, frontLanguage, backLanguage) {
   await database.write(async () => {
     const deck = await database.get('decks').find(deckId);
     await deck.update(d => {
       if (title !== undefined) d.title = title;
       if (description !== undefined) d.description = description;
+      if (frontLanguage !== undefined) d.frontLanguage = frontLanguage;
+      if (backLanguage !== undefined) d.backLanguage = backLanguage;
     });
   });
 }
@@ -57,6 +61,29 @@ export async function updateCardDifficulty(cardId, difficulty) {
     await deck.update(d => {
       d.totalReviews = (d.totalReviews || 0) + 1;
     });
+  });
+}
+
+/**
+ * Atualiza o conteúdo de um Cartão
+ */
+export async function updateCard(cardId, front, back) {
+  await database.write(async () => {
+    const card = await database.get('cards').find(cardId);
+    await card.update(c => {
+      if (front !== undefined) c.front = front;
+      if (back !== undefined) c.back = back;
+    });
+  });
+}
+
+/**
+ * Exclui um Cartão (Soft Delete)
+ */
+export async function deleteCard(cardId) {
+  await database.write(async () => {
+    const card = await database.get('cards').find(cardId);
+    await card.markAsDeleted();
   });
 }
 

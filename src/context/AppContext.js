@@ -1,0 +1,131 @@
+import React, { createContext, useState, useEffect } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { database } from '../../database';
+import { getTheme, getStyles } from '../theme/theme';
+import { seedInitialData } from '../../dbServices';
+
+export const AppContext = createContext();
+
+export const AppProvider = ({ children }) => {
+  const [isDark, setIsDark] = useState(true);
+  const theme = getTheme(isDark);
+  const styles = getStyles(theme);
+
+  const [cardsReviewedToday, setCardsReviewedToday] = useState(0);
+  const [dailyGoal, setDailyGoal] = useState(50);
+  const [targetReviewDecks, setTargetReviewDecks] = useState([]);
+  const [autoPlayAudio, setAutoPlayAudio] = useState(false);
+  const [cardFontSize, setCardFontSize] = useState(24);
+  const [preferredVoices, setPreferredVoices] = useState({});
+
+  const calculateTargetDecks = async () => {
+    try {
+      const allDecks = await database.get('decks').query().fetch();
+      const getDeckNum = (title) => {
+        const match = (title || '').match(/\d+/);
+        return match ? parseInt(match[0], 10) : 999999;
+      };
+      const sortedDecks = allDecks.sort((a, b) => getDeckNum(a.title) - getDeckNum(b.title));
+
+      let primaryId = null;
+      let secondaryId = null;
+      let primaryIndex = -1;
+
+      for (let i = 0; i < sortedDecks.length; i++) {
+        const deck = sortedDecks[i];
+        const deckCards = await deck.cards.fetch();
+        if (deckCards.some(c => c.difficultyStatus === 'hard')) {
+          primaryId = deck.id;
+          primaryIndex = i;
+          break;
+        }
+      }
+
+      if (primaryIndex !== -1 && primaryIndex + 1 < sortedDecks.length) {
+        secondaryId = sortedDecks[primaryIndex + 1].id;
+      }
+
+      setTargetReviewDecks([primaryId, secondaryId].filter(Boolean));
+    } catch (e) {
+      console.error("Erro ao calcular decks alvo:", e);
+    }
+  };
+
+  useEffect(() => {
+    seedInitialData().catch(console.error);
+
+    const loadDailyProgress = async () => {
+      try {
+        const today = new Date().toDateString();
+        const savedDate = await AsyncStorage.getItem('lastReviewDate');
+        const savedGoal = await AsyncStorage.getItem('dailyGoal');
+        const savedAutoPlay = await AsyncStorage.getItem('autoPlayAudio');
+        const savedFontSize = await AsyncStorage.getItem('cardFontSize');
+        const savedVoices = await AsyncStorage.getItem('preferredVoices');
+        
+        if (savedAutoPlay !== null) setAutoPlayAudio(savedAutoPlay === 'true');
+        if (savedGoal) setDailyGoal(parseInt(savedGoal, 10));
+        if (savedFontSize) setCardFontSize(parseInt(savedFontSize, 10));
+
+        if (savedDate === today) {
+          const savedCount = await AsyncStorage.getItem('cardsReviewedToday');
+          if (savedCount) setCardsReviewedToday(parseInt(savedCount, 10));
+        } else {
+          await AsyncStorage.setItem('lastReviewDate', today);
+          await AsyncStorage.setItem('cardsReviewedToday', '0');
+          setCardsReviewedToday(0);
+        }
+        
+        if (savedVoices) {
+          setPreferredVoices(JSON.parse(savedVoices));
+        }
+      } catch (e) {
+        console.log("Erro ao carregar progresso:", e);
+      }
+    };
+    
+    loadDailyProgress();
+  }, []);
+
+  const incrementDailyReview = async () => {
+    const newCount = cardsReviewedToday + 1;
+    setCardsReviewedToday(newCount);
+    try {
+      await AsyncStorage.setItem('cardsReviewedToday', newCount.toString());
+    } catch (e) {}
+  };
+
+  const handleSetPreferredVoice = async (lang, voiceId) => {
+    const newPrefs = { ...preferredVoices, [lang]: voiceId };
+    setPreferredVoices(newPrefs);
+    await AsyncStorage.setItem('preferredVoices', JSON.stringify(newPrefs));
+  };
+
+  const updateSettings = async (newGoal, newFontSize, newAutoPlay) => {
+    if (newGoal > 0) {
+      setDailyGoal(newGoal);
+      await AsyncStorage.setItem('dailyGoal', newGoal.toString());
+    }
+    if (newFontSize > 10) {
+      setCardFontSize(newFontSize);
+      await AsyncStorage.setItem('cardFontSize', newFontSize.toString());
+    }
+    setAutoPlayAudio(newAutoPlay);
+    await AsyncStorage.setItem('autoPlayAudio', newAutoPlay.toString());
+  };
+
+  return (
+    <AppContext.Provider value={{
+      isDark, setIsDark,
+      theme, styles,
+      cardsReviewedToday, incrementDailyReview,
+      dailyGoal, updateSettings,
+      targetReviewDecks, calculateTargetDecks,
+      autoPlayAudio, setAutoPlayAudio,
+      cardFontSize, setCardFontSize,
+      preferredVoices, handleSetPreferredVoice
+    }}>
+      {children}
+    </AppContext.Provider>
+  );
+};
