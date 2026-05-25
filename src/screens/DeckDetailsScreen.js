@@ -1,11 +1,13 @@
-import React, { useState, useContext, useEffect } from 'react';
+import React, { useState, useContext } from 'react';
 import { View, Text, TouchableOpacity, FlatList, Modal, TextInput, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Speech from 'expo-speech';
-import withObservables from '@nozbe/with-observables';
 import { useNavigation, useRoute } from '@react-navigation/native';
-import { database } from '../../database';
-import { createCard, deleteCard, updateCard } from '../../dbServices';
+import { useLiveQuery } from 'drizzle-orm/expo-sqlite';
+import { eq } from 'drizzle-orm';
+import db from '../../db';
+import { sets, cards } from '../../db/schema';
+import { createCard, deleteCard, updateCard } from '../../dbServices.drizzle';
 import { AppContext } from '../context/AppContext';
 
 const DeckCardItem = ({ item, deck, onMenuPress, theme, styles, preferredVoices }) => {
@@ -58,7 +60,7 @@ function DeckDetailsScreenContent({ deck, cards = [] }) {
   const onPractice = () => navigation.navigate('Practice', { deckId: deck.id });
 
   const onAddCard = async (deckId, front, back) => {
-    try { await createCard(deck, front, back); } catch (e) { console.error(e); }
+    try { await createCard(deckId, front, back); } catch (e) { console.error(e); }
   };
   const onDeleteCard = async (cardId) => {
     try { await deleteCard(cardId); } catch (e) { console.error(e); }
@@ -156,23 +158,21 @@ function DeckDetailsScreenContent({ deck, cards = [] }) {
   );
 }
 
-const EnhancedDeckDetailsScreen = withObservables(['deck'], ({ deck }) => ({
-  deck: deck.observe(),
-  cards: deck.cards.observe(),
-}))(DeckDetailsScreenContent);
-
 export default function DeckDetailsScreen() {
   const route = useRoute();
   const { deckId } = route.params || {};
-  const [deck, setDeck] = useState(null);
 
-  useEffect(() => {
-    if (deckId) {
-      database.get('decks').findAndObserve(deckId).subscribe(setDeck);
-    }
-  }, [deckId]);
+  const deck = useLiveQuery(
+    () => (deckId ? db.select().from(sets).where(eq(sets.id, deckId)).get() : null),
+    [deckId],
+  );
+
+  const deckCards = useLiveQuery(
+    () => (deckId ? db.select().from(cards).where(eq(cards.set_id, deckId)).all() : []),
+    [deckId],
+  ) || [];
 
   if (!deck) return <View style={{ flex: 1, backgroundColor: '#000' }} />;
 
-  return <EnhancedDeckDetailsScreen deck={deck} />;
+  return <DeckDetailsScreenContent deck={deck} cards={deckCards} />;
 }

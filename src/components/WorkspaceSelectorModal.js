@@ -11,9 +11,10 @@ import {
   Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import withObservables from '@nozbe/with-observables';
-import { database } from '../../database';
-import { createWorkspace } from './dbServices';
+import { useLiveQuery } from 'drizzle-orm/expo-sqlite';
+import db from '../../db';
+import { sets } from '../../db/schema';
+import { eq } from 'drizzle-orm';
 
 const WorkspaceSelectorModal = ({
   visible,
@@ -38,7 +39,7 @@ const WorkspaceSelectorModal = ({
 
   // 4. Ações (WatermelonDB)
   const handleEdit = (id) => {
-    // TODO: Implementar lógica de edição
+    // TODO: Implementar lógica de edição (abrir modal de edição)
     console.log('Editar workspace:', id);
     setMenuAbertoId(null);
   };
@@ -57,10 +58,11 @@ const WorkspaceSelectorModal = ({
       [
         { text: 'Cancelar', style: 'cancel' },
         { text: 'Excluir', style: 'destructive', onPress: async () => {
-          await database.write(async () => {
-            const workspace = await database.get('workspaces').find(id);
-            await workspace.markAsDeleted();
-          });
+          try {
+            await db.delete(sets).where(eq(sets.id, id)).run();
+          } catch (err) {
+            console.warn('Erro ao excluir set:', err.message);
+          }
         }},
       ]
     );
@@ -78,13 +80,21 @@ const WorkspaceSelectorModal = ({
 
   const handleCreateWorkspace = async () => {
     if (!newWorkspaceName.trim()) return;
-    await createWorkspace(newWorkspaceName.trim());
-    setNewWorkspaceName('');
-    setCreateModalVisible(false);
+    const id = Date.now().toString();
+    try {
+      await db.insert(sets).values({ id, title: newWorkspaceName.trim(), next_review_date: 0 }).run();
+      setNewWorkspaceName('');
+      setCreateModalVisible(false);
+    } catch (err) {
+      console.warn('Erro ao criar set:', err.message);
+    }
   };
 
-  const filteredWorkspaces = workspaces.filter(ws => 
-    ws.name.toLowerCase().includes(searchQuery.toLowerCase())
+  // Busca reativa dos workspaces (sets) no banco Drizzle
+  const workspaces = useLiveQuery(() => db.select().from(sets).orderBy(sets.title.asc()).all(), []);
+
+  const filteredWorkspaces = (workspaces || []).filter(ws => 
+    ws.title.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   // Renderiza cada Área de Trabalho vinda do Banco de Dados
@@ -102,7 +112,7 @@ const WorkspaceSelectorModal = ({
         >
           <View style={styles.itemRow}>
             <View style={[styles.colorBar, { backgroundColor: item.color || '#3B9EFF' }]} />
-            <Text style={[styles.itemText, { flex: 1 }]}>{item.name}</Text>
+            <Text style={[styles.itemText, { flex: 1 }]}>{item.title}</Text>
             
             {/* Ícone de três pontos - abre o menu */}
             <TouchableOpacity 
@@ -343,10 +353,4 @@ const styles = StyleSheet.create({
   modalConfirmText: { color: '#FFFFFF', fontWeight: 'bold', fontSize: 14 },
 });
 
-import { withDatabase } from '@hypertill/db/react';
-
-const EnhancedWorkspaceSelectorModal = withObservables(['database'], ({ database }) => ({
-  workspaces: database.get('workspaces').query().observe(),
-}))(WorkspaceSelectorModal);
-
-export default withDatabase(EnhancedWorkspaceSelectorModal);
+export default WorkspaceSelectorModal;

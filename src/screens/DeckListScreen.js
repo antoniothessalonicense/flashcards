@@ -1,11 +1,13 @@
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useContext } from 'react';
 import { View, Text, TouchableOpacity, FlatList, Modal, ScrollView, TextInput, Share, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Q } from '@hypertill/db';
-import withObservables from '@nozbe/with-observables';
+
+import { useLiveQuery } from 'drizzle-orm/expo-sqlite';
 import { useNavigation } from '@react-navigation/native';
-import { database } from '../../database';
-import { deleteDeck as deleteDeckDb, updateDeck, createCard, createDeck } from '../../dbServices';
+import { eq, like } from 'drizzle-orm';
+import db from '../../db';
+import { sets, cards } from '../../db/schema';
+import { deleteDeck as deleteDeckDb, updateDeck, createCard, createDeck } from '../../dbServices.drizzle';
 import { ProgressBar } from '../components/Shared';
 import MenuScreen from '../components/MenuScreen';
 import { AppContext } from '../context/AppContext';
@@ -56,12 +58,7 @@ const DeckItem = ({ deck, cards = [], isTarget, setMenuAtivo }) => {
   );
 };
 
-const EnhancedDeckItem = withObservables(['deck'], ({ deck }) => ({
-  deck: deck.observe(),
-  cards: deck.cards.observe(),
-}))(DeckItem);
-
-function DeckListScreen({ decks = [], totalCardsCount = 0 }) {
+function DeckListScreen({ decks = [], totalCardsCount = 0, cardsAll = [] }) {
   const { theme, styles, cardsReviewedToday, dailyGoal, targetReviewDecks, isDark, setIsDark } = useContext(AppContext);
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
@@ -76,7 +73,6 @@ function DeckListScreen({ decks = [], totalCardsCount = 0 }) {
   const [isSearching, setIsSearching] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [cardSearchQuery, setCardSearchQuery] = useState('');
-  const [cardSearchResults, setCardSearchResults] = useState([]);
 
   const [actionDeckId, setActionDeckId] = useState(null);
   const [editModal, setEditModal] = useState(false);
@@ -118,15 +114,14 @@ function DeckListScreen({ decks = [], totalCardsCount = 0 }) {
     return code || 'Selecionar Idioma';
   };
 
-  useEffect(() => {
-    if (cardSearchQuery.trim().length > 2) {
-      database.get('cards').query(
-        Q.where('front', Q.like(`%${cardSearchQuery}%`))
-      ).fetch().then(setCardSearchResults);
-    } else {
-      setCardSearchResults([]);
-    }
-  }, [cardSearchQuery]);
+  const cardSearchResults = useLiveQuery(
+    () => {
+      const queryText = cardSearchQuery.trim();
+      if (queryText.length <= 2) return [];
+      return db.select().from(cards).where(like(cards.front, `%${queryText}%`)).all();
+    },
+    [cardSearchQuery],
+  ) || [];
 
   const handleMenuClick = async (action) => {
     const deckId = menuAtivo;
@@ -147,8 +142,8 @@ function DeckListScreen({ decks = [], totalCardsCount = 0 }) {
       setCardBack('');
       setCardModal(true);
     } else if (action === 'share' || action === 'export') {
-      const cards = await deck.cards.fetch();
-      if (cards.length === 0) {
+      const deckCards = await db.select().from(cards).where(eq(cards.set_id, deckId)).all();
+      if (deckCards.length === 0) {
         Alert.alert('Baralho Vazio', 'Não há cartões neste conjunto para compartilhar.');
         return;
       }
@@ -156,10 +151,10 @@ function DeckListScreen({ decks = [], totalCardsCount = 0 }) {
         let textToExport = `#CONJUNTO: ${deck.title}\n`;
         if (deck.description) textToExport += `#DESCRIÇÃO: ${deck.description}\n`;
         textToExport += '\n';
-        cards.forEach(c => { textToExport += `#CARTÃO\nFRENTE: ${c.front}\nVERSO: ${c.back}\n\n`; });
+        deckCards.forEach(c => { textToExport += `#CARTÃO\nFRENTE: ${c.front}\nVERSO: ${c.back}\n\n`; });
         await Share.share({ message: textToExport.trim() });
       } else {
-        const textToShare = cards.map(c => `P: ${c.front}\nR: ${c.back}`).join('\n\n');
+        const textToShare = deckCards.map(c => `P: ${c.front}\nR: ${c.back}`).join('\n\n');
         await Share.share({ message: `Confira meu conjunto de estudos "${deck.title}":\n\n${textToShare}` });
       }
     } else if (action === 'archive') {
@@ -172,11 +167,11 @@ function DeckListScreen({ decks = [], totalCardsCount = 0 }) {
       setDailyGoalMenuVisible(false);
       let mdContent = '';
       for (const deck of decks) {
-        const cards = await deck.cards.fetch();
+        const deckCards = await db.select().from(cards).where(eq(cards.set_id, deck.id)).all();
         mdContent += `#CONJUNTO: ${deck.title}\n`;
         if (deck.description) mdContent += `#DESCRIÇÃO: ${deck.description}\n`;
         mdContent += '\n';
-        cards.forEach(c => { mdContent += `#CARTÃO\nFRENTE: ${c.front}\nVERSO: ${c.back}\n\n`; });
+        deckCards.forEach(c => { mdContent += `#CARTÃO\nFRENTE: ${c.front}\nVERSO: ${c.back}\n\n`; });
       }
       await Share.share({ message: mdContent.trim() });
     } catch (error) { 
@@ -186,8 +181,8 @@ function DeckListScreen({ decks = [], totalCardsCount = 0 }) {
 
   const onUpdateDeck = async (id, t, d, fL, bL) => { try { await updateDeck(id, t, d, fL, bL); } catch(e) { console.error(e); } };
   const onDeleteDeck = async (id) => { try { await deleteDeckDb(id); } catch(e) { console.error(e); } };
-  const onAddCard = async (id, f, b) => { try { const deck = await database.get('decks').find(id); await createCard(deck, f, b); } catch(e) { console.error(e); } };
-  const onAddDeck = async (t, d, fL, bL) => { try { await createDeck(t, d, 20, fL, bL); } catch(e) { console.error(e); } };
+  const onAddCard = async (id, f, b) => { try { await createCard(id, f, b); } catch(e) { console.error(e); } };
+  const onAddDeck = async (t, d, fL, bL) => { try { await createDeck(t, d, fL, bL); } catch(e) { console.error(e); } };
 
   // Handlers for "Review All" / "Practice All" should ideally be in Context or passed via Navigation, 
   // but for simplicity we will navigate to a generic 'ReviewAll' route or implement it here.
@@ -263,8 +258,9 @@ function DeckListScreen({ decks = [], totalCardsCount = 0 }) {
         data={filteredDecks}
         keyExtractor={item => String(item.id)}
         renderItem={({ item }) => (
-          <EnhancedDeckItem 
-            deck={item} 
+          <DeckItem
+            deck={item}
+            cards={cardsAll.filter(c => c.set_id === item.id)}
             isTarget={targetReviewDecks.includes(item.id)}
             setMenuAtivo={setMenuAtivo}
           />
@@ -408,13 +404,11 @@ function DeckListScreen({ decks = [], totalCardsCount = 0 }) {
   );
 }
 
-import { withDatabase } from '@hypertill/db/react';
+const DeckListScreenWrapper = (props) => {
+  const decks = useLiveQuery(() => db.select().from(sets).orderBy(sets.title.asc()).all(), []);
+  const cardsAll = useLiveQuery(() => db.select().from(cards).all(), []);
+  const totalCardsCount = (cardsAll || []).length;
+  return <DeckListScreen decks={decks || []} totalCardsCount={totalCardsCount} cardsAll={cardsAll || []} {...props} />;
+};
 
-const EnhancedDeckListScreen = withObservables(['database'], ({ database }) => {
-  return {
-    decks: database.get('decks').query().observe(),
-    totalCardsCount: database.get('cards').query().observeCount(),
-  };
-})(DeckListScreen);
-
-export default withDatabase(EnhancedDeckListScreen);
+export default DeckListScreenWrapper;

@@ -1,14 +1,16 @@
 import React, { useState, useEffect, useContext } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import withObservables from '@nozbe/with-observables';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import * as Speech from 'expo-speech';
+import { useLiveQuery } from 'drizzle-orm/expo-sqlite';
+import { eq, lte, or, asc } from 'drizzle-orm';
 import { ProgressBar } from '../components/Shared';
 import LottieView from 'lottie-react-native';
 import { AppContext } from '../context/AppContext';
-import { database } from '../../database';
-import { updateCardDifficulty } from '../../dbServices';
+import db from '../../db';
+import { sets, cards } from '../../db/schema';
+import { updateCardDifficulty } from '../../dbServices.drizzle';
 
 // Componente de revisão de flashcards
 export function ReviewScreenComponent({ deck, cards = [], isAllMode = false }) {
@@ -218,38 +220,37 @@ export function ReviewScreenComponent({ deck, cards = [], isAllMode = false }) {
   );
 }
 
-const EnhancedReviewScreen = withObservables(['deck'], ({ deck }) => ({
-  deck: deck.observe(),
-  cards: deck.cards.observe(),
-}))(ReviewScreenComponent);
-
 export default function ReviewScreen() {
   const route = useRoute();
-  const { deckId, reviewAll, practiceAll, studyMode } = route.params || {};
-  const [deck, setDeck] = useState(null);
+  const { deckId, reviewAll, practiceAll } = route.params || {};
+
+  const deck = useLiveQuery(
+    () => (deckId ? db.select().from(sets).where(eq(sets.id, deckId)).get() : null),
+    [deckId],
+  );
+
+  const deckCards = useLiveQuery(
+    () => (deckId ? db.select().from(cards).where(eq(cards.set_id, deckId)).all() : []),
+    [deckId],
+  ) || [];
+
   const [multiCards, setMultiCards] = useState(null);
 
   useEffect(() => {
-    if (deckId) {
-      const subscription = database.get('decks').findAndObserve(deckId).subscribe(setDeck);
-      return () => subscription.unsubscribe();
-    } else if (reviewAll || practiceAll) {
-      // Lógica simplificada de fetch manual
+    if (!deckId && (reviewAll || practiceAll)) {
       const fetchMulti = async () => {
         try {
-          const allDecks = await database.get('decks').query().fetch();
-          let cardsToReview = [];
           const now = Date.now();
+          let query = db.select().from(cards);
 
           if (reviewAll) {
-             // Exemplo simplificado para pegar os 'hard'
-             const allCards = await database.get('cards').query().fetch();
-             cardsToReview = allCards.filter(c => c.difficultyStatus === 'hard' || (c.nextReviewAt || 0) <= now).slice(0, 100);
+            query = query.where(or(eq(cards.difficultyStatus, 'hard'), lte(cards.next_review_date, now)));
           } else if (practiceAll) {
-             const allCards = await database.get('cards').query().fetch();
-             cardsToReview = allCards.filter(c => (c.nextReviewAt || 0) <= now).sort((a,b) => (a.nextReviewAt||0) - (b.nextReviewAt||0)).slice(0, 50);
+            query = query.where(lte(cards.next_review_date, now)).orderBy(asc(cards.next_review_date)).limit(50);
           }
-          setMultiCards(cardsToReview);
+
+          const allCards = await query.all();
+          setMultiCards(allCards);
         } catch (e) {
           console.error(e);
           setMultiCards([]);
@@ -266,7 +267,7 @@ export default function ReviewScreen() {
 
   if (!deck) return <View style={{ flex: 1, backgroundColor: '#000' }} />;
 
-  return <EnhancedReviewScreen deck={deck} />;
+  return <ReviewScreenComponent deck={deck} cards={deckCards} />;
 }
 
 const styles = StyleSheet.create({

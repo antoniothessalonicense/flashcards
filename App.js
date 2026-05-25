@@ -1,10 +1,8 @@
 import React from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'react-native';
-import DatabaseProvider from '@hypertill/db/react/DatabaseProvider';
 import { AppProvider, AppContext } from './src/context/AppContext';
 import AppNavigator from './src/navigation/AppNavigator';
-import { database } from './database';
 
 function Root() {
   const { isDark, theme } = React.useContext(AppContext);
@@ -18,12 +16,10 @@ function Root() {
 
 export default function App() {
   return (
-    <DatabaseProvider database={database}>
-      <SafeAreaProvider>
-        <AppProvider>
-          <Root />
-        </AppProvider>
-      </SafeAreaProvider>
-    </DatabaseProvider>
+    <SafeAreaProvider>
+      <AppProvider>
+        <Root />
+      </AppProvider>
+    </SafeAreaProvider>
   );
 }

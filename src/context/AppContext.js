@@ -1,8 +1,10 @@
 import React, { createContext, useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { database } from '../../database';
+import db from '../../db';
 import { getTheme, getStyles } from '../theme/theme';
-import { seedInitialData } from '../../dbServices';
+import { seedInitialData } from '../../dbServices.drizzle';
+import { sets, cards } from '../../db/schema';
+import { eq } from 'drizzle-orm';
 
 export const AppContext = createContext();
 
@@ -20,7 +22,10 @@ export const AppProvider = ({ children }) => {
 
   const calculateTargetDecks = async () => {
     try {
-      const allDecks = await database.get('decks').query().fetch();
+      const hardCards = await db.select({ setId: cards.set_id }).from(cards).where(eq(cards.difficultyStatus, 'hard')).all();
+      const hardDeckIds = new Set(hardCards.map(row => row.setId));
+
+      const allDecks = await db.select().from(sets).orderBy(sets.title.asc()).all();
       const getDeckNum = (title) => {
         const match = (title || '').match(/\d+/);
         return match ? parseInt(match[0], 10) : 999999;
@@ -29,20 +34,14 @@ export const AppProvider = ({ children }) => {
 
       let primaryId = null;
       let secondaryId = null;
-      let primaryIndex = -1;
+      const primaryIndex = sortedDecks.findIndex(deck => hardDeckIds.has(deck.id));
 
-      for (let i = 0; i < sortedDecks.length; i++) {
-        const deck = sortedDecks[i];
-        const deckCards = await deck.cards.fetch();
-        if (deckCards.some(c => c.difficultyStatus === 'hard')) {
-          primaryId = deck.id;
-          primaryIndex = i;
-          break;
-        }
-      }
-
-      if (primaryIndex !== -1 && primaryIndex + 1 < sortedDecks.length) {
-        secondaryId = sortedDecks[primaryIndex + 1].id;
+      if (primaryIndex !== -1) {
+        primaryId = sortedDecks[primaryIndex]?.id;
+        secondaryId = sortedDecks[primaryIndex + 1]?.id;
+      } else {
+        primaryId = sortedDecks[0]?.id || null;
+        secondaryId = sortedDecks[1]?.id || null;
       }
 
       setTargetReviewDecks([primaryId, secondaryId].filter(Boolean));
@@ -52,7 +51,12 @@ export const AppProvider = ({ children }) => {
   };
 
   useEffect(() => {
-    seedInitialData().catch(console.error);
+    const initializeApp = async () => {
+      await seedInitialData();
+      await calculateTargetDecks();
+    };
+
+    initializeApp().catch(console.error);
 
     const loadDailyProgress = async () => {
       try {

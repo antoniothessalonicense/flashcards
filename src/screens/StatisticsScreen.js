@@ -2,8 +2,9 @@ import React, { useContext } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
-import withObservables from '@nozbe/with-observables';
-import { database } from '../../database';
+import { useLiveQuery } from 'drizzle-orm/expo-sqlite';
+import db from '../../db';
+import { cards } from '../../db/schema';
 import { AppContext } from '../context/AppContext';
 
 function StatisticsScreen({ totalCardsCount }) {
@@ -54,10 +55,9 @@ const styles = StyleSheet.create({
   cardSub: { fontSize: 14 },
 });
 
-import { withDatabase } from '@hypertill/db/react';
+const StatisticsScreenWrapper = () => {
+  const totalCardsCount = useLiveQuery(() => db.select().from(cards).all(), [])?.length || 0;
+  return <StatisticsScreen totalCardsCount={totalCardsCount} />;
+};
 
-const EnhancedStatisticsScreen = withObservables(['database'], ({ database }) => ({
-  totalCardsCount: database.get('cards').query().observeCount(),
-}))(StatisticsScreen);
-
-export default withDatabase(EnhancedStatisticsScreen);
+export default StatisticsScreenWrapper;

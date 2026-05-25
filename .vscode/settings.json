@@ -24,5 +24,6 @@
   "workbench.list.smoothScrolling": false,
   "workbench.tree.renderIndentGuides": "none",
   "editor.links": false,
-  "telemetry.telemetryLevel": "off"
+  "telemetry.telemetryLevel": "off",
+  "github.copilot.chat.agentDebugLog.fileLogging.enabled": true
 }

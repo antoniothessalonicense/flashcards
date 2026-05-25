@@ -20,7 +20,6 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      "@hypertill/db",
       "expo-dev-client",
       [
         "expo-splash-screen",

@@ -10,19 +10,15 @@ import {
   Alert,
   SafeAreaView
 } from 'react-native';
-import { withDatabase } from '@hypertill/db/DatabaseProvider';
-import { Database } from '@hypertill/db';
-import withObservables from '@nozbe/with-observables';
-import CicloConfig from '../../models/CicloConfig';
+import { useLiveQuery } from 'drizzle-orm/expo-sqlite';
+import db from '../../db';
+import { cicloConfigs } from '../../db/schema';
+import { saveCycleConfig } from '../../dbServices.drizzle';
 
-interface ConfiguracaoCicloScreenProps {
-  database: Database;
-  configs: CicloConfig[]; 
-}
-
-const ConfiguracaoCicloScreen: React.FC<ConfiguracaoCicloScreenProps> = ({ database, configs }) => {
-  // Pega o primeiro registro de configuração (assumindo single row)
-  const config = configs.length > 0 ? configs[0] : null;
+const ConfiguracaoCicloScreen: React.FC = () => {
+  const { data: config } = useLiveQuery(
+    db.select().from(cicloConfigs).limit(1)
+  );
 
   const DEFAULTS = {
     limiteDiarioTotal: 0,
@@ -48,15 +44,15 @@ const ConfiguracaoCicloScreen: React.FC<ConfiguracaoCicloScreenProps> = ({ datab
 
   useEffect(() => {
     if (config) {
-      setLimiteDiarioTotal(config.limiteDiarioTotal ?? DEFAULTS.limiteDiarioTotal);
-      setLimiteAtivo(config.limiteAtivo ?? DEFAULTS.limiteAtivo);
-      setCardsPorConjuntoObrigatorio(config.cardsPorConjuntoObrigatorio ?? DEFAULTS.cardsPorConjuntoObrigatorio);
-      setQtdConjuntosAtrasados(config.qtdConjuntosAtrasados ?? DEFAULTS.qtdConjuntosAtrasados);
-      setCardsPorConjuntoAtrasado(config.cardsPorConjuntoAtrasado ?? DEFAULTS.cardsPorConjuntoAtrasado);
-      setCardsErrosAnteriores(config.cardsErrosAnteriores ?? DEFAULTS.cardsErrosAnteriores);
-      setCardsImportantes(config.cardsImportantes ?? DEFAULTS.cardsImportantes);
-      setQtdConjuntosFixosPorCiclo(config.qtdConjuntosFixosPorCiclo ?? DEFAULTS.qtdConjuntosFixosPorCiclo);
-      setCardsPorConjuntoFixo(config.cardsPorConjuntoFixo ?? DEFAULTS.cardsPorConjuntoFixo);
+      setLimiteDiarioTotal(config?.[0]?.limiteDiarioTotal ?? DEFAULTS.limiteDiarioTotal);
+      setLimiteAtivo(Boolean(config?.[0]?.limiteAtivo));
+      setCardsPorConjuntoObrigatorio(config?.[0]?.cardsPorConjuntoObrigatorio ?? DEFAULTS.cardsPorConjuntoObrigatorio);
+      setQtdConjuntosAtrasados(config?.[0]?.qtdConjuntosAtrasados ?? DEFAULTS.qtdConjuntosAtrasados);
+      setCardsPorConjuntoAtrasado(config?.[0]?.cardsPorConjuntoAtrasado ?? DEFAULTS.cardsPorConjuntoAtrasado);
+      setCardsErrosAnteriores(config?.[0]?.cardsErrosAnteriores ?? DEFAULTS.cardsErrosAnteriores);
+      setCardsImportantes(config?.[0]?.cardsImportantes ?? DEFAULTS.cardsImportantes);
+      setQtdConjuntosFixosPorCiclo(config?.[0]?.qtdConjuntosFixosPorCiclo ?? DEFAULTS.qtdConjuntosFixosPorCiclo);
+      setCardsPorConjuntoFixo(config?.[0]?.cardsPorConjuntoFixo ?? DEFAULTS.cardsPorConjuntoFixo);
     }
   }, [config]);
 
@@ -74,32 +70,16 @@ const ConfiguracaoCicloScreen: React.FC<ConfiguracaoCicloScreenProps> = ({ datab
 
   const salvarConfiguracoes = async () => {
     try {
-      await database.write(async () => {
-        if (config) {
-          await config.update((c: any) => {
-            c.limiteDiarioTotal = limiteDiarioTotal;
-            c.limiteAtivo = limiteAtivo;
-            c.cardsPorConjuntoObrigatorio = cardsPorConjuntoObrigatorio;
-            c.qtdConjuntosAtrasados = qtdConjuntosAtrasados;
-            c.cardsPorConjuntoAtrasado = cardsPorConjuntoAtrasado;
-            c.cardsErrosAnteriores = cardsErrosAnteriores;
-            c.cardsImportantes = cardsImportantes;
-            c.qtdConjuntosFixosPorCiclo = qtdConjuntosFixosPorCiclo;
-            c.cardsPorConjuntoFixo = cardsPorConjuntoFixo;
-          });
-        } else {
-          await database.get('ciclo_configs').create((c: any) => {
-            c.limiteDiarioTotal = limiteDiarioTotal;
-            c.limiteAtivo = limiteAtivo;
-            c.cardsPorConjuntoObrigatorio = cardsPorConjuntoObrigatorio;
-            c.qtdConjuntosAtrasados = qtdConjuntosAtrasados;
-            c.cardsPorConjuntoAtrasado = cardsPorConjuntoAtrasado;
-            c.cardsErrosAnteriores = cardsErrosAnteriores;
-            c.cardsImportantes = cardsImportantes;
-            c.qtdConjuntosFixosPorCiclo = qtdConjuntosFixosPorCiclo;
-            c.cardsPorConjuntoFixo = cardsPorConjuntoFixo;
-          });
-        }
+      await saveCycleConfig({
+        limiteDiarioTotal,
+        limiteAtivo: limiteAtivo ? 1 : 0,
+        cardsPorConjuntoObrigatorio,
+        qtdConjuntosAtrasados,
+        cardsPorConjuntoAtrasado,
+        cardsErrosAnteriores,
+        cardsImportantes,
+        qtdConjuntosFixosPorCiclo,
+        cardsPorConjuntoFixo,
       });
       Alert.alert('Sucesso', 'Configurações salvas com sucesso!');
     } catch (error) {
@@ -492,8 +472,4 @@ const styles = StyleSheet.create({
   },
 });
 
-const enhance = withObservables([], ({ database }: { database: Database }) => ({
-  configs: database.get('ciclo_configs').query().observe(),
-}));
-
-export default withDatabase(enhance(ConfiguracaoCicloScreen));
+export default ConfiguracaoCicloScreen;
