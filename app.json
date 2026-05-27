@@ -33,19 +33,27 @@
         "expo-build-properties",
         {
           "android": {
-            "kotlinVersion": "2.0.21",
-            "compileSdkVersion": 35,
-            "targetSdkVersion": 35,
+            
+            "compileSdkVersion": 36,
+            "targetSdkVersion": 36,
             "buildToolsVersion": "35.0.0"
           }
         }
-      ]
+      ],
+      "expo-sqlite",
+      "expo-status-bar"
     ],
     "extra": {
       "eas": {
         "projectId": "cca1b2c4-8b50-4b7d-85bf-87a4278ca813"
       }
     },
-    "owner": "antoniothessalonicense"
+    "owner": "antoniothessalonicense",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/cca1b2c4-8b50-4b7d-85bf-87a4278ca813"
+    }
   }
 }

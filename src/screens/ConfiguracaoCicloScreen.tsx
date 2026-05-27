@@ -7,9 +7,9 @@ import {
   TouchableOpacity,
   ScrollView,
   StyleSheet,
-  Alert,
-  SafeAreaView
+  Alert
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLiveQuery } from 'drizzle-orm/expo-sqlite';
 import db from '../../db';
 import { cicloConfigs } from '../../db/schema';

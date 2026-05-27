@@ -1,13 +1,12 @@
-import React, { useState, useContext } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import { View, Text, TouchableOpacity, FlatList, Modal, ScrollView, TextInput, Share, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useLiveQuery } from 'drizzle-orm/expo-sqlite';
 import { useNavigation } from '@react-navigation/native';
-import { eq, like } from 'drizzle-orm';
+import { eq, like, asc } from 'drizzle-orm';
 import db from '../../db';
 import { sets, cards } from '../../db/schema';
-import { deleteDeck as deleteDeckDb, updateDeck, createCard, createDeck } from '../../dbServices.drizzle';
 import { ProgressBar } from '../components/Shared';
 import MenuScreen from '../components/MenuScreen';
 import { AppContext } from '../context/AppContext';
@@ -25,6 +24,8 @@ const SUPPORTED_LANGUAGES = [
   { code: 'ru-RU', name: 'Russo', icon: '🇷🇺' },
   { code: 'ko-KR', name: 'Coreano', icon: '🇰🇷' },
 ];
+
+const genId = () => `${Date.now()}-${Math.floor(Math.random() * 100000)}`;
 
 const DeckItem = ({ deck, cards = [], isTarget, setMenuAtivo }) => {
   const { theme, styles } = useContext(AppContext);
@@ -62,11 +63,6 @@ function DeckListScreen({ decks = [], totalCardsCount = 0, cardsAll = [] }) {
   const { theme, styles, cardsReviewedToday, dailyGoal, targetReviewDecks, isDark, setIsDark } = useContext(AppContext);
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
-
-  // Props originais que vinham do App.js:
-  // onMenuOpen, activeWorkspace, onOpenWorkspace, handleReviewAll, handlePracticeAll
-  // Como estamos refatorando, vamos simplificar. 
-  // O menu global e workspaces devem ser controlados via context ou hooks.
   
   const [menuAtivo, setMenuAtivo] = useState(null);
   const [menuVisible, setMenuVisible] = useState(false);
@@ -114,14 +110,25 @@ function DeckListScreen({ decks = [], totalCardsCount = 0, cardsAll = [] }) {
     return code || 'Selecionar Idioma';
   };
 
-  const cardSearchResults = useLiveQuery(
-    () => {
+  const [cardSearchResults, setCardSearchResults] = useState([]);
+
+  useEffect(() => {
+    const fetchCards = async () => {
       const queryText = cardSearchQuery.trim();
-      if (queryText.length <= 2) return [];
-      return db.select().from(cards).where(like(cards.front, `%${queryText}%`)).all();
-    },
-    [cardSearchQuery],
-  ) || [];
+      if (queryText.length <= 2) {
+        setCardSearchResults([]);
+        return;
+      }
+      try {
+        const results = await db.select().from(cards).where(like(cards.front, `%${queryText}%`)).all();
+        setCardSearchResults(results);
+      } catch (error) {
+        console.error('Erro na busca de cartões:', error);
+        setCardSearchResults([]);
+      }
+    };
+    fetchCards();
+  }, [cardSearchQuery]);
 
   const handleMenuClick = async (action) => {
     const deckId = menuAtivo;
@@ -179,13 +186,46 @@ function DeckListScreen({ decks = [], totalCardsCount = 0, cardsAll = [] }) {
     }
   };
 
-  const onUpdateDeck = async (id, t, d, fL, bL) => { try { await updateDeck(id, t, d, fL, bL); } catch(e) { console.error(e); } };
-  const onDeleteDeck = async (id) => { try { await deleteDeckDb(id); } catch(e) { console.error(e); } };
-  const onAddCard = async (id, f, b) => { try { await createCard(id, f, b); } catch(e) { console.error(e); } };
-  const onAddDeck = async (t, d, fL, bL) => { try { await createDeck(t, d, fL, bL); } catch(e) { console.error(e); } };
+  const onUpdateDeck = async (id, t, d, fL, bL) => { 
+    try { 
+      await db.update(sets).set({ title: t, description: d, frontLanguage: fL, backLanguage: bL }).where(eq(sets.id, id)).run(); 
+    } catch(e) { console.error(e); } 
+  };
+  const onDeleteDeck = async (id) => { 
+    try { 
+      await db.delete(cards).where(eq(cards.set_id, id)).run();
+      await db.delete(sets).where(eq(sets.id, id)).run(); 
+    } catch(e) { console.error(e); } 
+  };
+  const onAddCard = async (id, f, b) => { 
+    try { 
+      const newCardId = genId();
+      await db.insert(cards).values({
+        id: newCardId,
+        set_id: id,
+        front: f,
+        back: b,
+        next_review_date: Date.now(),
+        ease_factor: 250,
+        difficultyStatus: 'new'
+      }).run();
+    } catch(e) { console.error(e); } 
+  };
+  const onAddDeck = async (t, d, fL, bL) => { 
+    try { 
+      const id = genId();
+      await db.insert(sets).values({
+        id,
+        title: t,
+        description: d,
+        frontLanguage: fL,
+        backLanguage: bL,
+        next_review_date: 0,
+        totalReviews: 0
+      }).run();
+    } catch(e) { console.error(e); } 
+  };
 
-  // Handlers for "Review All" / "Practice All" should ideally be in Context or passed via Navigation, 
-  // but for simplicity we will navigate to a generic 'ReviewAll' route or implement it here.
   const handleReviewAll = () => navigation.navigate('Review', { reviewAll: true, studyMode: 'review' });
   const handlePracticeAll = () => navigation.navigate('Review', { practiceAll: true, studyMode: 'practice' });
 
@@ -261,7 +301,7 @@ function DeckListScreen({ decks = [], totalCardsCount = 0, cardsAll = [] }) {
           <DeckItem
             deck={item}
             cards={cardsAll.filter(c => c.set_id === item.id)}
-            isTarget={targetReviewDecks.includes(item.id)}
+            isTarget={targetReviewDecks?.includes(item.id)}
             setMenuAtivo={setMenuAtivo}
           />
         )}
@@ -278,7 +318,6 @@ function DeckListScreen({ decks = [], totalCardsCount = 0, cardsAll = [] }) {
         </TouchableOpacity>
       </View>
 
-      {/* Modals are kept similar but using styles and theme from context */}
       <Modal visible={menuAtivo !== null} transparent={true} animationType="fade" onRequestClose={() => setMenuAtivo(null)}>
         <TouchableOpacity style={styles.contextOverlay} activeOpacity={1} onPress={() => setMenuAtivo(null)}>
           <View style={styles.contextMenu}>
@@ -394,7 +433,6 @@ function DeckListScreen({ decks = [], totalCardsCount = 0, cardsAll = [] }) {
           setMenuVisible(false);
           if (id === 'statistics') navigation.navigate('Statistics');
           if (id === 'settings') navigation.navigate('Configuracoes');
-          // Add other menu items logic here later
         }}
         isDark={isDark}
         toggleTheme={() => setIsDark(!isDark)}
@@ -405,9 +443,11 @@ function DeckListScreen({ decks = [], totalCardsCount = 0, cardsAll = [] }) {
 }
 
 const DeckListScreenWrapper = (props) => {
-  const decks = useLiveQuery(() => db.select().from(sets).orderBy(sets.title.asc()).all(), []);
-  const cardsAll = useLiveQuery(() => db.select().from(cards).all(), []);
+  const { data: decks } = useLiveQuery(db.select().from(sets).orderBy(asc(sets.title)));
+  const { data: cardsAll } = useLiveQuery(db.select().from(cards));
+  
   const totalCardsCount = (cardsAll || []).length;
+  
   return <DeckListScreen decks={decks || []} totalCardsCount={totalCardsCount} cardsAll={cardsAll || []} {...props} />;
 };
 

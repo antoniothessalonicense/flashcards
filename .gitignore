@@ -1,47 +1,30 @@
-# Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
-
-# dependencies
+# Dependências e Cache
 node_modules/
-
-# Expo
 .expo/
 dist/
-web-build/
-expo-env.d.ts
-
-# Native
-.kotlin/
-*.orig.*
-*.jks
-*.p8
-*.p12
-*.key
-*.mobileprovision
-
-# Metro
-.metro-health-check*
-
-# debug
 npm-debug.*
-yarn-debug.*
-yarn-error.*
+*.jso
 
-# macOS
-.DS_Store
-*.pem
+# Pastas Nativas (Geradas automaticamente pelo Expo Prebuild)
+# Como você utiliza Geração Nativa Contínua, não versione essas pastas.
+android/
+ios/
 
-# local env files
-.env*.local
+# Variáveis de Ambiente e Segredos
+.env
+.env.local
+.env.*.local
 
-# typescript
-*.tsbuildinfo
-
-# generated native folders
-/ios
-/android
-
-# Local Database
+# Arquivos de Banco de Dados Locais (Gerados pelos seus scripts de migração)
 *.db
 *.sqlite
+*.sqlite3
 flashcards.db
 
+# Arquivos de Sistema Operacional
+.DS_Store
+Thumbs.db
+
+# EAS Build
+# Ignore o arquivo de configuração local do EAS, se houver
+eas-build-local.json
