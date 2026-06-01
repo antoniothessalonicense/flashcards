@@ -16,11 +16,13 @@
       },
       "package": "com.antoniothessalonicense.flashcards"
     },
+    "scheme": "flashcards",
     "web": {
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
       "expo-dev-client",
+      "@react-native-google-signin/google-signin",
       [
         "expo-splash-screen",
         {

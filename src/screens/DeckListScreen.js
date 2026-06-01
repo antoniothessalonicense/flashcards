@@ -4,10 +4,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useLiveQuery } from 'drizzle-orm/expo-sqlite';
 import { useNavigation } from '@react-navigation/native';
-import { eq, like, asc } from 'drizzle-orm';
+import { eq, like, asc, sql } from 'drizzle-orm';
 import db from '../../db';
 import { sets, cards } from '../../db/schema';
 import { ProgressBar } from '../components/Shared';
+import CreateDeckModal from '../components/CreateDeckModal';
 import MenuScreen from '../components/MenuScreen';
 import { AppContext } from '../context/AppContext';
 
@@ -27,12 +28,12 @@ const SUPPORTED_LANGUAGES = [
 
 const genId = () => `${Date.now()}-${Math.floor(Math.random() * 100000)}`;
 
-const DeckItem = ({ deck, cards = [], isTarget, setMenuAtivo }) => {
+const DeckItem = ({ deck, stats, isTarget, setMenuAtivo }) => {
   const { theme, styles } = useContext(AppContext);
   const navigation = useNavigation();
   
-  const totalCards = cards.length;
-  const memorized = cards.filter(c => c.difficultyStatus === 'good' || c.difficultyStatus === 'easy').length;
+  const totalCards = stats?.total || 0;
+  const memorized = stats?.memorized || 0;
   const progress = totalCards > 0 ? (memorized / totalCards) * 100 : 0;
 
   return (
@@ -59,7 +60,7 @@ const DeckItem = ({ deck, cards = [], isTarget, setMenuAtivo }) => {
   );
 };
 
-function DeckListScreen({ decks = [], totalCardsCount = 0, cardsAll = [] }) {
+function DeckListScreen({ decks = [], totalCardsCount = 0, deckStats = [] }) {
   const { theme, styles, cardsReviewedToday, dailyGoal, targetReviewDecks, isDark, setIsDark } = useContext(AppContext);
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
@@ -82,10 +83,6 @@ function DeckListScreen({ decks = [], totalCardsCount = 0, cardsAll = [] }) {
   const [cardBack, setCardBack] = useState('');
   
   const [deckModal, setDeckModal] = useState(false);
-  const [newDeckTitle, setNewDeckTitle] = useState('');
-  const [newDeckDesc, setNewDeckDesc] = useState('');
-  const [newDeckFrontLang, setNewDeckFrontLang] = useState('pt-BR');
-  const [newDeckBackLang, setNewDeckBackLang] = useState('en-US');
   
   const [dailyGoalMenuVisible, setDailyGoalMenuVisible] = useState(false);
   const [langPickerVisible, setLangPickerVisible] = useState(false);
@@ -99,8 +96,6 @@ function DeckListScreen({ decks = [], totalCardsCount = 0, cardsAll = [] }) {
   const selectLanguage = (code) => {
     if (langPickerTarget === 'editFront') setEditFrontLang(code);
     else if (langPickerTarget === 'editBack') setEditBackLang(code);
-    else if (langPickerTarget === 'newFront') setNewDeckFrontLang(code);
-    else if (langPickerTarget === 'newBack') setNewDeckBackLang(code);
     setLangPickerVisible(false);
   };
 
@@ -188,13 +183,13 @@ function DeckListScreen({ decks = [], totalCardsCount = 0, cardsAll = [] }) {
 
   const onUpdateDeck = async (id, t, d, fL, bL) => { 
     try { 
-      await db.update(sets).set({ title: t, description: d, frontLanguage: fL, backLanguage: bL }).where(eq(sets.id, id)).run(); 
+      await db.update(sets).set({ title: t, description: d, frontLanguage: fL, backLanguage: bL }).where(eq(sets.id, id)).returning(); 
     } catch(e) { console.error(e); } 
   };
   const onDeleteDeck = async (id) => { 
     try { 
-      await db.delete(cards).where(eq(cards.set_id, id)).run();
-      await db.delete(sets).where(eq(sets.id, id)).run(); 
+      await db.delete(cards).where(eq(cards.set_id, id)).returning();
+      await db.delete(sets).where(eq(sets.id, id)).returning(); 
     } catch(e) { console.error(e); } 
   };
   const onAddCard = async (id, f, b) => { 
@@ -208,21 +203,7 @@ function DeckListScreen({ decks = [], totalCardsCount = 0, cardsAll = [] }) {
         next_review_date: Date.now(),
         ease_factor: 250,
         difficultyStatus: 'new'
-      }).run();
-    } catch(e) { console.error(e); } 
-  };
-  const onAddDeck = async (t, d, fL, bL) => { 
-    try { 
-      const id = genId();
-      await db.insert(sets).values({
-        id,
-        title: t,
-        description: d,
-        frontLanguage: fL,
-        backLanguage: bL,
-        next_review_date: 0,
-        totalReviews: 0
-      }).run();
+      }).returning();
     } catch(e) { console.error(e); } 
   };
 
@@ -297,14 +278,17 @@ function DeckListScreen({ decks = [], totalCardsCount = 0, cardsAll = [] }) {
       <FlatList
         data={filteredDecks}
         keyExtractor={item => String(item.id)}
-        renderItem={({ item }) => (
-          <DeckItem
-            deck={item}
-            cards={cardsAll.filter(c => c.set_id === item.id)}
-            isTarget={targetReviewDecks?.includes(item.id)}
-            setMenuAtivo={setMenuAtivo}
-          />
-        )}
+        renderItem={({ item }) => {
+          const stats = deckStats.find(s => s.setId === item.id) || { total: 0, memorized: 0 };
+          return (
+            <DeckItem
+              deck={item}
+              stats={stats}
+              isTarget={targetReviewDecks?.includes(item.id)}
+              setMenuAtivo={setMenuAtivo}
+            />
+          );
+        }}
         contentContainerStyle={{ paddingBottom: 148 }}
         style={{ flex: 1 }}
       />
@@ -388,29 +372,16 @@ function DeckListScreen({ decks = [], totalCardsCount = 0, cardsAll = [] }) {
         </View>
       </Modal>
 
-      <Modal visible={deckModal} transparent animationType="fade" onRequestClose={() => setDeckModal(false)}>
-        <View style={styles.wsModalOverlay}>
-          <View style={styles.wsModalBox}>
-            <Text style={styles.wsModalTitle}>Novo Conjunto</Text>
-            <TextInput style={styles.wsInput} placeholder="Nome" placeholderTextColor="#666" value={newDeckTitle} onChangeText={setNewDeckTitle} />
-            <TextInput style={[styles.wsInput, { marginTop: 10 }]} placeholder="Descrição" placeholderTextColor="#666" value={newDeckDesc} onChangeText={setNewDeckDesc} />
-            <Text style={{ color: theme.gray, fontSize: 12, marginTop: 10, marginBottom: 4 }}>Idioma da Frente:</Text>
-            <TouchableOpacity style={styles.wsInput} onPress={() => openLangPicker('newFront')}>
-              <Text style={{ color: newDeckFrontLang ? theme.white : '#666' }}>{renderLangDisplay(newDeckFrontLang)}</Text>
-            </TouchableOpacity>
-            <Text style={{ color: theme.gray, fontSize: 12, marginTop: 10, marginBottom: 4 }}>Idioma do Verso:</Text>
-            <TouchableOpacity style={styles.wsInput} onPress={() => openLangPicker('newBack')}>
-              <Text style={{ color: newDeckBackLang ? theme.white : '#666' }}>{renderLangDisplay(newDeckBackLang)}</Text>
-            </TouchableOpacity>
-            <View style={styles.wsModalActions}>
-              <TouchableOpacity onPress={() => setDeckModal(false)}><Text style={styles.wsModalCancel}>Cancelar</Text></TouchableOpacity>
-              <TouchableOpacity onPress={() => { if(newDeckTitle.trim()) { onAddDeck(newDeckTitle, newDeckDesc, newDeckFrontLang, newDeckBackLang); setDeckModal(false); setNewDeckTitle(''); setNewDeckDesc(''); setNewDeckFrontLang('pt-BR'); setNewDeckBackLang('en-US'); } }}>
-                <View style={styles.wsModalConfirm}><Text style={styles.wsModalConfirmText}>Criar</Text></View>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
+      <CreateDeckModal
+        visible={deckModal}
+        onClose={() => setDeckModal(false)}
+        onCreated={() => {
+          // Callback opcional para atualizar a lista principal; o useLiveQuery do DeckListScreen
+          // já reagirá à inserção no SQLite automaticamente, mas este callback permite
+          // disparar ações adicionais se necessário.
+          console.log('Novo conjunto criado com sucesso');
+        }}
+      />
 
       <Modal visible={langPickerVisible} transparent animationType="fade" onRequestClose={() => setLangPickerVisible(false)}>
         <TouchableOpacity style={styles.contextOverlay} activeOpacity={1} onPress={() => setLangPickerVisible(false)}>
@@ -444,11 +415,21 @@ function DeckListScreen({ decks = [], totalCardsCount = 0, cardsAll = [] }) {
 
 const DeckListScreenWrapper = (props) => {
   const { data: decks } = useLiveQuery(db.select().from(sets).orderBy(asc(sets.title)));
-  const { data: cardsAll } = useLiveQuery(db.select().from(cards));
   
-  const totalCardsCount = (cardsAll || []).length;
+  // Agregação Otimizada: Em vez de carregar todos os potenciais cartões (full scan), 
+  // agrupamos no lado do banco valendo-se do índice idx_cards_set_id
+  const { data: deckStats } = useLiveQuery(
+    db.select({
+      setId: cards.set_id,
+      total: sql`count(${cards.id})`.mapWith(Number),
+      memorized: sql`sum(CASE WHEN ${cards.difficultyStatus} IN ('good', 'easy') THEN 1 ELSE 0 END)`.mapWith(Number)
+    }).from(cards).groupBy(cards.set_id)
+  );
   
-  return <DeckListScreen decks={decks || []} totalCardsCount={totalCardsCount} cardsAll={cardsAll || []} {...props} />;
+  // Soma total baseada nas agregações
+  const totalCardsCount = (deckStats || []).reduce((acc, curr) => acc + (curr.total || 0), 0);
+  
+  return <DeckListScreen decks={decks || []} totalCardsCount={totalCardsCount} deckStats={deckStats || []} {...props} />;
 };
 
 export default DeckListScreenWrapper;

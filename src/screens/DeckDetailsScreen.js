@@ -7,7 +7,6 @@ import { useLiveQuery } from 'drizzle-orm/expo-sqlite';
 import { eq } from 'drizzle-orm';
 import db from '../../db';
 import { sets, cards } from '../../db/schema';
-import { createCard, deleteCard, updateCard } from '../../dbServices.drizzle';
 import { AppContext } from '../context/AppContext';
 
 const DeckCardItem = ({ item, deck, onMenuPress, theme, styles, preferredVoices }) => {
@@ -41,7 +40,7 @@ const DeckCardItem = ({ item, deck, onMenuPress, theme, styles, preferredVoices 
   );
 };
 
-function DeckDetailsScreenContent({ deck, cards = [] }) {
+function DeckDetailsScreenContent({ deck, deckCards = [] }) {
   const { theme, styles, preferredVoices } = useContext(AppContext);
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
@@ -60,13 +59,37 @@ function DeckDetailsScreenContent({ deck, cards = [] }) {
   const onPractice = () => navigation.navigate('Practice', { deckId: deck.id });
 
   const onAddCard = async (deckId, front, back) => {
-    try { await createCard(deckId, front, back); } catch (e) { console.error(e); }
+    try { 
+      const newCardId = `${Date.now()}-${Math.floor(Math.random() * 100000)}`;
+      await db.insert(cards).values({
+        id: newCardId,
+        set_id: deckId,
+        front: front.trim(),
+        back: back.trim(),
+        next_review_date: Date.now(),
+        ease_factor: 250,
+        difficultyStatus: 'new'
+      }).returning(); 
+    } catch (e) { 
+      console.error('Erro ao adicionar cartão:', e); 
+    }
   };
   const onDeleteCard = async (cardId) => {
-    try { await deleteCard(cardId); } catch (e) { console.error(e); }
+    try { 
+      await db.delete(cards).where(eq(cards.id, cardId)).returning(); 
+    } catch (e) { 
+      console.error('Erro ao deletar cartão:', e); 
+    }
   };
   const onUpdateCard = async (cardId, front, back) => {
-    try { await updateCard(cardId, front, back); } catch (e) { console.error(e); }
+    try { 
+      await db.update(cards).set({ 
+        front: front.trim(), 
+        back: back.trim() 
+      }).where(eq(cards.id, cardId)).returning(); 
+    } catch (e) { 
+      console.error('Erro ao atualizar cartão:', e); 
+    }
   };
 
   const handleCloseModal = () => { setCardModal(false); setCardFront(''); setCardBack(''); };
@@ -85,12 +108,12 @@ function DeckDetailsScreenContent({ deck, cards = [] }) {
           </View>
         </View>
         <View style={styles.ddTabs}>
-          <View style={styles.ddTabActive}><Text style={styles.ddTabText}>Todos: {cards.length}</Text></View>
+          <View style={styles.ddTabActive}><Text style={styles.ddTabText}>Todos: {deckCards.length}</Text></View>
         </View>
       </View>
 
       <FlatList
-        data={cards}
+        data={deckCards}
         keyExtractor={item => String(item.id)}
         numColumns={2}
         contentContainerStyle={styles.ddListContent}
@@ -162,17 +185,13 @@ export default function DeckDetailsScreen() {
   const route = useRoute();
   const { deckId } = route.params || {};
 
-  const deck = useLiveQuery(
-    () => (deckId ? db.select().from(sets).where(eq(sets.id, deckId)).get() : null),
-    [deckId],
-  );
+  const { data: deckData } = useLiveQuery(db.select().from(sets).where(eq(sets.id, deckId || '')));
+  const { data: deckCardsData } = useLiveQuery(db.select().from(cards).where(eq(cards.set_id, deckId || '')));
 
-  const deckCards = useLiveQuery(
-    () => (deckId ? db.select().from(cards).where(eq(cards.set_id, deckId)).all() : []),
-    [deckId],
-  ) || [];
+  const deck = deckData?.[0];
+  const deckCards = deckCardsData || [];
 
   if (!deck) return <View style={{ flex: 1, backgroundColor: '#000' }} />;
 
-  return <DeckDetailsScreenContent deck={deck} cards={deckCards} />;
+  return <DeckDetailsScreenContent deck={deck} deckCards={deckCards} />;
 }

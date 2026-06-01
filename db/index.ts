@@ -4,7 +4,7 @@ import * as SQLite from 'expo-sqlite';
 import { drizzle as createDrizzle } from 'drizzle-orm/expo-sqlite';
 
 // Abra o arquivo de banco de dados do app (local)
-const sqliteDb = SQLite.openDatabaseSync('flashcards.db');
+const sqliteDb = SQLite.openDatabaseSync('flashcards.db', { enableChangeListener: true });
 
 // Cria a instância Drizzle ligada ao driver do Expo SQLite
 export const db = createDrizzle(sqliteDb);

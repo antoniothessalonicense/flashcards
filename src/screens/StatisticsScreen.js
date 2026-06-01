@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { useLiveQuery } from 'drizzle-orm/expo-sqlite';
 import db from '../../db';
+import { sql } from 'drizzle-orm';
 import { cards } from '../../db/schema';
 import { AppContext } from '../context/AppContext';
 
@@ -56,7 +57,11 @@ const styles = StyleSheet.create({
 });
 
 const StatisticsScreenWrapper = () => {
-  const totalCardsCount = useLiveQuery(() => db.select().from(cards).all(), [])?.length || 0;
+  const { data: stats } = useLiveQuery(
+    db.select({ count: sql`count(${cards.id})`.mapWith(Number) }).from(cards)
+  );
+  const totalCardsCount = stats?.[0]?.count || 0;
+  
   return <StatisticsScreen totalCardsCount={totalCardsCount} />;
 };
 

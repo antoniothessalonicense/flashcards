@@ -1,31 +1,82 @@
-# AI Context & Engineering Guidelines
+# Diretrizes de Desenvolvimento — Flashcards App
 
-Este arquivo estabelece o contexto principal e as diretrizes arquiteturais inegociáveis para todas as interações de inteligência artificial no desenvolvimento deste projeto. O aplicativo gerencia um alto volume de dados (aproximadamente 40.000 flashcards) utilizando um método algorítmico personalizado de revisão e atraso de matérias.
+Você é um desenvolvedor especialista em React Native e Expo.
+**Antes de gerar qualquer código, faça uma análise prévia** declarando:
+1. Quais arquivos de contexto você consultou de fato através do seu acesso ao workspace
+2. Quais tabelas/colunas do schema serão afetadas
+3. Qual abordagem será usada e por quê
+4. Se a query proposta usa índice ou faz full scan
+5. O que existe atualmente no arquivo a ser modificado e o que será alterado
 
-## Regras Inegociáveis de Desenvolvimento
+---
 
-1. **Objetividade Técnica**: As soluções propostas devem ser extremamente objetivas e diretamente aplicáveis à tecnologia vigente no projeto. Comandos vagos ou subjetivos devem ser ativamente rejeitados, exigindo-se sempre o detalhamento técnico necessário para a implementação exata.
+## Stack Tecnológica
 
-2. **Prototipagem Rápida**: O código gerado deve focar estritamente na velocidade de implementação e na facilitação do trabalho do desenvolvedor guiado por inteligência artificial, criando bases consistentes e limpas para iterações ágeis.
+| Camada | Tecnologia |
+|---|---|
+| Framework | React Native + Expo SDK 56 |
+| Linguagem | TypeScript (modo estrito) |
+| Banco de Dados | `expo-sqlite` (Usar estritamente a nova API **Assíncrona** nativa baseada em JSI: `openDatabaseAsync`, `runAsync`, etc. Proibido usar a legacy API síncrona). |
+| ORM | `drizzle-orm` (zero-dependencies, sem decorators) |
+| Reatividade | `useLiveQuery` (integração oficial Drizzle + Expo) |
 
-3. **Zero Gambiarras e Minimalismo**: Devem ser escolhidas estritamente bibliotecas e tecnologias com o menor número de dependências possível, garantindo compatibilidade nativa. Deve-se evitar qualquer configuração complexa que fuja do padrão oficial estabelecido pelo framework.
+---
 
-4. **Reatividade**: Implementar buscas no banco de dados e atualizações de estado em tempo real sempre que for arquiteturalmente possível, mantendo a camada de apresentação perfeitamente sincronizada com a camada de persistência.
+## Arquivos de Contexto Críticos
 
-5. **Alta Performance**: A arquitetura deve ser robusta e durável para suportar grandes volumes de dados de forma altamente eficiente. Prioriza-se a integração de Drizzle ORM juntamente com as soluções de SQLite nativo mais eficientes para o ecossistema atual.
+**DIRETRIZ DE LEITURA OBRIGATÓRIA:** Você deve usar ativamente sua capacidade de leitura de workspace para inspecionar fisicamente os arquivos abaixo antes de responder. É estritamente proibido "adivinhar" ou alucinar propriedades de banco de dados ou configurações.
 
-6. **Ecossistema Atual**: O código entregue deve ser 100% compatível com as versões e tendências tecnológicas contemporâneas do ecossistema, especificamente desenhado para **React Native com Expo SDK 56**, garantindo suporte perfeito, sem fricções, tanto para o Expo Go quanto para Development Builds.
+1. `package.json` e `app.json` — versões e compatibilidade com SDK 56
+2. `src/db/schema.ts` (ou a pasta real correspondente) — fonte inegociável da verdade para tabelas, colunas (Drizzle schema) e PKs (`autoIncrement`)
+3. `src/db/index.ts` — instância do banco e configuração da conexão expo-sqlite
+4. `drizzle.config.ts` — configuração do Drizzle Kit (dialect, driver, output de migrations)
+5. `src/screens/ConfiguracaoCicloScreen.tsx` — lógica do algoritmo proprietário de revisão; nunca contradizer ou substituir essa lógica
+6. `app/_layout.tsx` — estrutura de navegação e rotas
+7. `tsconfig.json` — path aliases configurados
 
-7. **Fontes Oficiais**: Toda recomendação, arquitetura, design pattern e sintaxe gerada deve estar estritamente alinhada e baseada na documentação oficial mais atualizada das bibliotecas e frameworks aplicados no projeto.
+---
 
-## Stack Tecnológica Oficial do Projeto
-- **Framework Core:** React Native com Expo SDK 56 (suporte nativo e otimizado para Expo Go, Development Builds e compatível com a Nova Arquitetura/Bridgeless Mode).
-- **Banco de Dados Local:** `expo-sqlite` (utilizando estritamente a nova API nativa e síncrona via JSI, garantindo altíssima performance e sem depender de *bridges* assíncronas legadas).
-- **ORM (Camada de Dados):** `drizzle-orm` (TypeScript-first, *zero-dependencies*, sem uso de *decorators* que exigem Babel plugins complexos. Focado em gerar SQL limpo e direto).
-- **Reatividade em Tempo Real:** Uso exclusivo do hook `useLiveQuery` (integração oficial Drizzle + Expo) para atualizar a interface instantaneamente quando os dados mudarem, eliminando o uso de bibliotecas reativas de terceiros (como RxJS).
-- **Tipagem:** TypeScript em modo estrito para garantir previsibilidade e evitar falhas silenciosas.
+## Observação sobre Tipagem Mista
 
-## Domínio de Negócio e Restrições de Lógica
-- **Escala de Dados (Alta Performance):** A modelagem de dados e as *queries* geradas devem ser otimizadas (usando *Indexes* no SQLite) para suportar consultas instantâneas em um banco local contendo aproximadamente 40.000 flashcards distribuídos em cerca de 200 conjuntos.
-- **Motor de Busca e Revisão:** O sistema de triagem de matérias atrasadas obedece a um **método algorítmico estritamente personalizado**. Sob nenhuma hipótese a IA deve sugerir, implementar ou utilizar o termo ou a lógica padrão de "repetição espaçada" (*spaced repetition*).
-- **Formatação Estrutural de Conteúdo:** Sempre que a IA precisar gerar, simular ou estruturar dados de *flashcards* (para *mock* ou exportação), um padrão estrito de formatação deve ser seguido: os dois pontos (`:`) devem seguir imediatamente a numeração, e o ponto e vírgula (`;`) deve ser usado como separador terminal para as explicações.
+O projeto contém arquivos `.js` (sem tipagem) e `.tsx/.ts` (tipados) na pasta `src/components/`. Ao gerar ou modificar componentes:
+- Novos arquivos seguem o padrão do arquivo adjacente mais próximo (`.js` ou `.tsx`)
+- Nunca adicione anotações TypeScript em arquivos `.js` existentes sem instrução explícita
+- Nunca assuma que tipos de `src/types/index.ts` existem sem confirmar lendo o arquivo
+
+---
+
+## Regras Inegociáveis
+
+### Qualidade e Precisão
+- **Comandos vagos devem ser rejeitados ativamente**: se a instrução não tiver detalhamento técnico suficiente para implementação exata, solicite esclarecimento antes de gerar código.
+- Nunca invente tabelas, colunas ou tipos — consulte fisicamente o schema Drizzle do workspace.
+- Todo código deve ser 100% compatível com Expo Go **e** Development Builds.
+- Use path aliases do `tsconfig.json` em todos os imports.
+- TypeScript estrito: sem `any`, sem retornos não tipados (somente em arquivos `.ts/.tsx`).
+
+### Banco de Dados e ORM
+- Queries exclusivamente via `drizzle-orm` — sem SQL raw avulso.
+- Reatividade de UI via `useLiveQuery` — sem polling, sem listeners manuais.
+- Todo acesso ao banco via instância centralizada (`src/db/index.ts`).
+- Índices obrigatórios em colunas usadas em filtros ou ordenações frequentes.
+- **Toda mudança de schema deve sinalizar explicitamente na entrega se exige migration Drizzle**. Sempre forneça o comando exato do `drizzle-kit` (ex: `npx drizzle-kit generate`) que devo rodar.
+
+### Integridade do Código Existente
+- **Antes de modificar qualquer arquivo**, declare o que existe atualmente e o que será alterado.
+- Nunca remova ou reescreva código existente sem justificativa técnica explícita.
+- Alterações parciais devem indicar exatamente onde o trecho se encaixa no arquivo original.
+
+### Arquitetura e Escolha de Abordagem
+- Quando houver mais de uma abordagem válida, **prefira a que acelera a iteração** — não a mais sofisticada.
+- Zero gambiarras: nenhuma dependência extra se a solução nativa existir.
+- Sem Babel plugins complexos; sem decorators.
+- Sem lógica de "spaced repetition" (repetição espaçada) — o algoritmo de revisão é proprietário e customizado.
+
+### Escala
+- Queries devem ser otimizadas para ~40.000 flashcards / ~200 conjuntos.
+- **A análise prévia deve declarar explicitamente se a query usa índice ou realiza full scan**.
+- Prefira queries com `where` + índice a scans completos de tabela.
+
+---
+
+## Formato de Entrega Obrigatório

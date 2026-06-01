@@ -41,8 +41,12 @@ export function ReviewScreenComponent({ deck, cards = [], isAllMode = false }) {
 
   useEffect(() => {
     if (cards.length > 0 && index >= cards.length && !lottieAnim) {
-      fetch('https://lottie.host/81ca1d49-411a-464a-951b-5e6e3c0429f7/B2E1gV00Ue.json')
-        .then(res => res.json())
+      // Changed to a valid public Lottie JSON URL since the previous one returned HTML
+      fetch('https://assets2.lottiefiles.com/packages/lf20_touohxv0.json')
+        .then(res => {
+          if (!res.ok) throw new Error('Network response was not ok');
+          return res.json();
+        })
         .then(data => setLottieAnim(data))
         .catch(err => console.log("Erro ao baixar animação Lottie", err));
     }
@@ -224,15 +228,11 @@ export default function ReviewScreen() {
   const route = useRoute();
   const { deckId, reviewAll, practiceAll } = route.params || {};
 
-  const deck = useLiveQuery(
-    () => (deckId ? db.select().from(sets).where(eq(sets.id, deckId)).get() : null),
-    [deckId],
-  );
-
-  const deckCards = useLiveQuery(
-    () => (deckId ? db.select().from(cards).where(eq(cards.set_id, deckId)).all() : []),
-    [deckId],
-  ) || [];
+  const { data: deckData } = useLiveQuery(db.select().from(sets).where(eq(sets.id, deckId || '')));
+  const { data: deckCardsData } = useLiveQuery(db.select().from(cards).where(eq(cards.set_id, deckId || '')));
+  
+  const deck = deckData?.[0];
+  const deckCards = deckCardsData || [];
 
   const [multiCards, setMultiCards] = useState(null);
 

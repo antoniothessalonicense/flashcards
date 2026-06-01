@@ -4,11 +4,12 @@ import db from '../../db';
 import { getTheme, getStyles } from '../theme/theme';
 import { seedInitialData } from '../../dbServices.drizzle';
 import { sets, cards } from '../../db/schema';
-import { eq } from 'drizzle-orm';
+import { eq, asc } from 'drizzle-orm';
 
 export const AppContext = createContext();
 
 export const AppProvider = ({ children }) => {
+  const [user, setUser] = useState(null);
   const [isDark, setIsDark] = useState(true);
   const theme = getTheme(isDark);
   const styles = getStyles(theme);
@@ -22,15 +23,15 @@ export const AppProvider = ({ children }) => {
 
   const calculateTargetDecks = async () => {
     try {
-      const hardCards = await db.select({ setId: cards.set_id }).from(cards).where(eq(cards.difficultyStatus, 'hard')).all();
-      const hardDeckIds = new Set(hardCards.map(row => row.setId));
+      const hardCards = await db.select().from(cards).where(eq(cards.difficultyStatus, 'hard')).all();
+      const hardDeckIds = new Set((hardCards || []).map(row => row.set_id));
 
-      const allDecks = await db.select().from(sets).orderBy(sets.title.asc()).all();
+      const allDecks = await db.select().from(sets).all();
       const getDeckNum = (title) => {
         const match = (title || '').match(/\d+/);
         return match ? parseInt(match[0], 10) : 999999;
       };
-      const sortedDecks = allDecks.sort((a, b) => getDeckNum(a.title) - getDeckNum(b.title));
+      const sortedDecks = (allDecks || []).slice().sort((a, b) => getDeckNum(a.title) - getDeckNum(b.title));
 
       let primaryId = null;
       let secondaryId = null;
@@ -120,6 +121,7 @@ export const AppProvider = ({ children }) => {
 
   return (
     <AppContext.Provider value={{
+      user, setUser,
       isDark, setIsDark,
       theme, styles,
       cardsReviewedToday, incrementDailyReview,

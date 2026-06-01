@@ -14,7 +14,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLiveQuery } from 'drizzle-orm/expo-sqlite';
 import db from '../../db';
 import { sets } from '../../db/schema';
-import { eq } from 'drizzle-orm';
+import { eq, asc } from 'drizzle-orm';
 
 const WorkspaceSelectorModal = ({
   visible,
@@ -59,7 +59,7 @@ const WorkspaceSelectorModal = ({
         { text: 'Cancelar', style: 'cancel' },
         { text: 'Excluir', style: 'destructive', onPress: async () => {
           try {
-            await db.delete(sets).where(eq(sets.id, id)).run();
+            await db.delete(sets).where(eq(sets.id, id)).returning();
           } catch (err) {
             console.warn('Erro ao excluir set:', err.message);
           }
@@ -82,7 +82,7 @@ const WorkspaceSelectorModal = ({
     if (!newWorkspaceName.trim()) return;
     const id = Date.now().toString();
     try {
-      await db.insert(sets).values({ id, title: newWorkspaceName.trim(), next_review_date: 0 }).run();
+      await db.insert(sets).values({ id, title: newWorkspaceName.trim(), next_review_date: 0 }).returning();
       setNewWorkspaceName('');
       setCreateModalVisible(false);
     } catch (err) {
@@ -91,7 +91,7 @@ const WorkspaceSelectorModal = ({
   };
 
   // Busca reativa dos workspaces (sets) no banco Drizzle
-  const workspaces = useLiveQuery(() => db.select().from(sets).orderBy(sets.title.asc()).all(), []);
+  const { data: workspaces } = useLiveQuery(db.select().from(sets).orderBy(asc(sets.title)));
 
   const filteredWorkspaces = (workspaces || []).filter(ws => 
     ws.title.toLowerCase().includes(searchQuery.toLowerCase())
