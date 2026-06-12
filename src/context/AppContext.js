@@ -119,6 +119,11 @@ export const AppProvider = ({ children }) => {
     await AsyncStorage.setItem('autoPlayAudio', newAutoPlay.toString());
   };
 
+  const handleSetAutoPlayAudio = async (value) => {
+    setAutoPlayAudio(value);
+    await AsyncStorage.setItem('autoPlayAudio', value.toString());
+  };
+
   return (
     <AppContext.Provider value={{
       user, setUser,
@@ -127,7 +132,7 @@ export const AppProvider = ({ children }) => {
       cardsReviewedToday, incrementDailyReview,
       dailyGoal, updateSettings,
       targetReviewDecks, calculateTargetDecks,
-      autoPlayAudio, setAutoPlayAudio,
+      autoPlayAudio, setAutoPlayAudio, handleSetAutoPlayAudio,
       cardFontSize, setCardFontSize,
       preferredVoices, handleSetPreferredVoice
     }}>

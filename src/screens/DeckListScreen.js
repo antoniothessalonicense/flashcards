@@ -1,6 +1,11 @@
 import React, { useState, useEffect, useContext } from 'react';
-import { View, Text, TouchableOpacity, FlatList, Modal, ScrollView, TextInput, Share, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, FlatList, Modal, ScrollView, TextInput, Share, Alert, Switch } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as DocumentPicker from 'expo-document-picker';
+import * as FileSystem from 'expo-file-system';
+import * as Clipboard from 'expo-clipboard';
+import { z } from 'zod';
+import * as Speech from 'expo-speech';
 
 import { useLiveQuery } from 'drizzle-orm/expo-sqlite';
 import { useNavigation } from '@react-navigation/native';
@@ -11,6 +16,9 @@ import { ProgressBar } from '../components/Shared';
 import CreateDeckModal from '../components/CreateDeckModal';
 import MenuScreen from '../components/MenuScreen';
 import { AppContext } from '../context/AppContext';
+import { tempImportText } from '../temp_import';
+import { buildCycleCards } from '../../dbServices.drizzle';
+import { useCicloConfigStore } from '../store/useCicloConfigStore';
 
 const SUPPORTED_LANGUAGES = [
   { code: 'pt-BR', name: 'Português', icon: '🇧🇷' },
@@ -27,6 +35,19 @@ const SUPPORTED_LANGUAGES = [
 ];
 
 const genId = () => `${Date.now()}-${Math.floor(Math.random() * 100000)}`;
+
+const flashcardSchema = z.array(
+  z.object({
+    front: z.string({
+      required_error: "O campo 'front' (frente) é obrigatório.",
+      invalid_type_error: "O campo 'front' deve ser uma string de texto."
+    }).min(1, "A frente do cartão ('front') não pode ser vazia."),
+    back: z.string({
+      required_error: "O campo 'back' (verso) é obrigatório.",
+      invalid_type_error: "O campo 'back' deve ser uma string de texto."
+    }).min(1, "O verso do cartão ('back') não pode ser vazio.")
+  })
+);
 
 const DeckItem = ({ deck, stats, isTarget, setMenuAtivo }) => {
   const { theme, styles } = useContext(AppContext);
@@ -61,7 +82,7 @@ const DeckItem = ({ deck, stats, isTarget, setMenuAtivo }) => {
 };
 
 function DeckListScreen({ decks = [], totalCardsCount = 0, deckStats = [] }) {
-  const { theme, styles, cardsReviewedToday, dailyGoal, targetReviewDecks, isDark, setIsDark } = useContext(AppContext);
+  const { theme, styles, cardsReviewedToday, dailyGoal, targetReviewDecks, isDark, setIsDark, preferredVoices, handleSetPreferredVoice, autoPlayAudio, handleSetAutoPlayAudio } = useContext(AppContext);
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
   
@@ -87,6 +108,24 @@ function DeckListScreen({ decks = [], totalCardsCount = 0, deckStats = [] }) {
   const [dailyGoalMenuVisible, setDailyGoalMenuVisible] = useState(false);
   const [langPickerVisible, setLangPickerVisible] = useState(false);
   const [langPickerTarget, setLangPickerTarget] = useState('');
+  const [importModalVisible, setImportModalVisible] = useState(false);
+  const [importText, setImportText] = useState('');
+
+  const [voicesConfigModalVisible, setVoicesConfigModalVisible] = useState(false);
+  const [voiceSelectionModalVisible, setVoiceSelectionModalVisible] = useState(false);
+  const [selectedLang, setSelectedLang] = useState('pt-BR');
+  const [availableVoices, setAvailableVoices] = useState([]);
+
+  useEffect(() => {
+    Speech.getAvailableVoicesAsync().then(setAvailableVoices);
+  }, []);
+
+  const getVoiceEmoji = (name = '') => {
+    const n = name.toLowerCase();
+    if (n.includes('female') || n.includes('woman') || n.includes('girl') || n.includes('zira') || n.includes('maria') || n.includes('luciana') || n.includes('helena') || n.includes('vitoria') || n.includes('siri female') || n.includes('femenino') || n.includes('femenina')) return '👩';
+    if (n.includes('male') || n.includes('man') || n.includes('boy') || n.includes('david') || n.includes('daniel') || n.includes('thiago') || n.includes('siri male') || n.includes('masculino')) return '👨';
+    return '🗣️';
+  };
 
   const openLangPicker = (target) => {
     setLangPickerTarget(target);
@@ -96,6 +135,7 @@ function DeckListScreen({ decks = [], totalCardsCount = 0, deckStats = [] }) {
   const selectLanguage = (code) => {
     if (langPickerTarget === 'editFront') setEditFrontLang(code);
     else if (langPickerTarget === 'editBack') setEditBackLang(code);
+    else if (langPickerTarget === 'voiceConfig') setSelectedLang(code);
     setLangPickerVisible(false);
   };
 
@@ -124,6 +164,328 @@ function DeckListScreen({ decks = [], totalCardsCount = 0, deckStats = [] }) {
     };
     fetchCards();
   }, [cardSearchQuery]);
+
+  const processarDeckDeFlashcards = async (texto) => {
+    try {
+      console.log('=== PROCESSANDO FLASHCARDS ===');
+      console.log('Tamanho do texto:', texto.length);
+
+      const normalized = texto
+        .replace(/\r\n/g, '\n')
+        .replace(/\r/g, '\n')
+        .replace(/\\r\\n/g, '\n')
+        .replace(/\\r/g, '\n')
+        .replace(/\t/g, ' ')
+        .replace(/[“”]/g, '"')
+        .replace(/[‘’]/g, "'")
+        .replace(/\u00A0/g, ' ')
+        .replace(/[\u200B-\u200D\uFEFF]/g, '')
+        .normalize('NFC');
+
+      const lines = normalized.split('\n');
+      let title = 'Conjunto Importado';
+      let description = '';
+      const parsedCards = [];
+      let currentCard = null;
+      let currentField = null;
+
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i].trim();
+        if (line.length === 0) continue;
+
+        const upperLine = line.toUpperCase();
+        // Corrige a regex para remover os acentos corretamente (sem escape duplo)
+        const safeMatchLine = upperLine.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+        if (safeMatchLine.startsWith('#CONJUNTO:')) {
+          title = line.substring(10).trim();
+        } else if (safeMatchLine.startsWith('#DESCRICAO:') || safeMatchLine.startsWith('#DESCRIÇÃO:')) {
+          description = line.substring(11).trim();
+        } else if (safeMatchLine === '#CARTAO') {
+          // Quando encontrar #CARTÃO, finaliza o cartão atual se for válido
+          if (currentCard && currentCard.frente && currentCard.verso) {
+            parsedCards.push(currentCard);
+          }
+          currentCard = { frente: '', verso: '' };
+          currentField = null;
+        } else if (safeMatchLine.startsWith('FRENTE:')) {
+          if (!currentCard || currentCard.frente) {
+             if (currentCard && currentCard.frente && currentCard.verso) {
+               parsedCards.push(currentCard);
+             }
+             currentCard = { frente: '', verso: '' };
+          }
+          const contentMatch = line.match(/^FRENTE:\s*(.*)$/i);
+          currentCard.frente = contentMatch ? contentMatch[1].trim() : line.substring(7).trim();
+          currentField = 'frente';
+        } else if (safeMatchLine.startsWith('VERSO:')) {
+          if (!currentCard) currentCard = { frente: '', verso: '' };
+          const contentMatch = line.match(/^VERSO:\s*(.*)$/i);
+          currentCard.verso = contentMatch ? contentMatch[1].trim() : line.substring(6).trim();
+          currentField = 'verso';
+        } else if (currentCard && currentField) {
+          // Concatena quebra de linha literal
+          currentCard[currentField] += '\n' + line;
+        }
+      }
+      
+      if (currentCard && currentCard.frente && currentCard.verso) {
+        parsedCards.push(currentCard);
+      }
+
+      console.log('Cartões válidos encontrados:', parsedCards.length);
+      console.log('Título:', title);
+
+      if (parsedCards.length === 0) {
+        Alert.alert(
+          'Erro de Formatação', 
+          'Nenhum cartão válido foi encontrado.\n\nCausa: O texto não segue o padrão exigido.\n\nExemplo esperado:\n#CARTÃO\nFRENTE: sua pergunta\nVERSO: sua resposta'
+        );
+        return;
+      }
+
+      const newDeckId = genId();
+      await db.insert(sets).values({
+        id: newDeckId,
+        title: title,
+        description: description,
+        frontLanguage: 'pt-BR',
+        backLanguage: 'en-US',
+      }).returning();
+
+      for (const c of parsedCards) {
+        await db.insert(cards).values({
+          id: genId(),
+          set_id: newDeckId,
+          front: c.frente.trim(),
+          back: c.verso.trim(),
+          next_review_date: Date.now(),
+          ease_factor: 250,
+          difficultyStatus: 'new'
+        }).returning();
+      }
+
+      Alert.alert('Sucesso', `Conjunto '${title}' criado com ${parsedCards.length} cartões!`);
+    } catch (error) {
+      console.error('Erro ao processar flashcards:', error);
+      Alert.alert(
+        'Erro na Importação', 
+        `Não foi possível concluir a importação.\n\nTipo: ${error.name || 'Erro Desconhecido'}\nCausa: ${error.message || 'Falha no processamento do texto ou banco de dados.'}`
+      );
+    }
+  };
+
+  const handleJSONClipboardImport = async () => {
+    try {
+      console.log('=== INICIANDO IMPORTAÇÃO DE JSON DA ÁREA DE TRANSFERÊNCIA ===');
+      const clipboardContent = await Clipboard.getStringAsync();
+      
+      if (!clipboardContent || !clipboardContent.trim()) {
+        Alert.alert('Área de Transferência Vazia', 'Não há nenhum conteúdo copiado na sua área de transferência para importar.');
+        return;
+      }
+
+      // Limpeza preventiva de caracteres invisíveis
+      const sanitizedContent = clipboardContent
+        .replace(/\u00A0/g, ' ') // Substitui Non-breaking spaces por espaço normal
+        .replace(/[\u200B-\u200D\uFEFF]/g, ''); // Remove Zero-width spaces e BOM
+
+      let parsedData;
+      try {
+        parsedData = JSON.parse(sanitizedContent);
+      } catch (jsonError) {
+        Alert.alert('JSON Inválido', 'JSON Inválido ou mal formatado.');
+        return;
+      }
+
+      let cardsArray = parsedData;
+
+      // Verifica se a propriedade cartoes existe e é um array antes de iterar
+      if (parsedData && typeof parsedData === 'object' && !Array.isArray(parsedData)) {
+        if (parsedData.cartoes && Array.isArray(parsedData.cartoes)) {
+          cardsArray = parsedData.cartoes;
+        } else {
+          Alert.alert('Formato Inválido', 'O objeto JSON deve conter uma propriedade "cartoes" que seja um array.');
+          return;
+        }
+      } else if (!Array.isArray(cardsArray)) {
+        Alert.alert('Formato Inválido', 'O JSON fornecido não é um array válido e não possui a propriedade "cartoes".');
+        return;
+      }
+
+      // Normaliza os nomes das propriedades para se adequar ao esquema (front/back)
+      const normalizedCards = cardsArray.map(item => {
+        if (!item || typeof item !== 'object') return item;
+        return {
+          front: item.front || item.frente || '',
+          back: item.back || item.verso || ''
+        };
+      });
+
+      let validatedCards;
+      try {
+        validatedCards = flashcardSchema.parse(normalizedCards);
+      } catch (zodError) {
+        if (zodError instanceof z.ZodError) {
+          const errorsFormatted = zodError.errors.map((err) => {
+            const index = typeof err.path[0] === 'number' ? `no cartão #${err.path[0] + 1}` : '';
+            const field = err.path[1] ? `campo '${err.path[1]}'` : '';
+            const location = [index, field].filter(Boolean).join(', ');
+            return `- ${location ? `${location}: ` : ''}${err.message}`;
+          }).join('\n');
+
+          Alert.alert('Erro de Validação JSON', `O JSON possui os seguintes problemas:\n\n${errorsFormatted}`);
+        } else {
+          Alert.alert('Erro de Validação', 'Ocorreu um erro ao validar os dados do JSON.');
+        }
+        return;
+      }
+
+      if (validatedCards.length === 0) {
+        Alert.alert('Importação Vazia', 'Nenhum cartão foi encontrado no JSON fornecido.');
+        return;
+      }
+
+      const newDeckId = genId();
+      const title = `Importado via JSON (${new Date().toLocaleDateString('pt-BR')} ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })})`;
+      
+      await db.insert(sets).values({
+        id: newDeckId,
+        title: title,
+        description: 'Conjunto criado por importação de JSON da área de transferência.',
+        frontLanguage: 'pt-BR',
+        backLanguage: 'en-US',
+      }).returning();
+
+      for (const cardData of validatedCards) {
+        await db.insert(cards).values({
+          id: genId(),
+          set_id: newDeckId,
+          front: cardData.front.trim(),
+          back: cardData.back.trim(),
+          next_review_date: Date.now(),
+          ease_factor: 250,
+          difficultyStatus: 'new',
+        }).returning();
+      }
+
+      setImportModalVisible(false);
+      Alert.alert('Sucesso', `Conjunto '${title}' criado com sucesso com ${validatedCards.length} cartões!`);
+
+    } catch (error) {
+      console.error('Erro na importação JSON da área de transferência:', error);
+      Alert.alert('Erro', 'Ocorreu um erro ao salvar o JSON no banco de dados local.');
+    }
+  };
+
+  const handleImport = () => {
+    setImportText('');
+    setImportModalVisible(true);
+  };
+
+  const handleFileImport = async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: '*/*',
+        copyToCacheDirectory: true,
+      });
+
+      if (result.canceled) return;
+
+      const file = result.assets[0];
+      const fileName = file.name.toLowerCase();
+
+      if (!fileName.endsWith('.txt') && !fileName.endsWith('.md') && !fileName.endsWith('.json')) {
+        Alert.alert('Formato Inválido', 'Por favor, selecione um arquivo .txt, .md ou .json');
+        return;
+      }
+
+      let fileContent = '';
+      try {
+        fileContent = await FileSystem.readAsStringAsync(file.uri, {
+          encoding: FileSystem.EncodingType.UTF8,
+        });
+      } catch (readError) {
+        console.warn('Fallback: readAsStringAsync falhou, tentando fetch.', readError);
+        const response = await fetch(file.uri);
+        fileContent = await response.text();
+      }
+
+      console.log('=== IMPORTAÇÃO DE ARQUIVO ===');
+      console.log('Arquivo:', fileName);
+      console.log('Tamanho (caracteres):', fileContent.length);
+
+      // Tenta decodificar como JSON primeiro aplicando a higienização rigorosa
+      const sanitizedContent = fileContent
+        .replace(/[\r\n]+/g, ' ') // Remove quebras de linha literais
+        .replace(/\t/g, ' ') // Remove tabulações literais
+        .replace(/[“”]/g, '"') // Converte aspas duplas inteligentes para aspas padrão
+        .replace(/[‘’]/g, "'") // Converte aspas simples inteligentes para aspas padrão
+        .replace(/\u00A0/g, ' ') // Remove espaços inquebráveis
+        .replace(/[\u200B-\u200D\uFEFF]/g, '') // Remove caracteres invisíveis/BOM
+        .trim();
+
+      let isJson = false;
+      let parsedData = null;
+
+      if (sanitizedContent.startsWith('{') || sanitizedContent.startsWith('[')) {
+        try {
+          parsedData = JSON.parse(sanitizedContent);
+          isJson = true;
+        } catch (e) {
+          console.warn('Arquivo não é JSON válido ou tem erros de sintaxe, fallback para modo TXT.');
+        }
+      }
+
+      setImportModalVisible(false);
+
+      if (isJson && parsedData && typeof parsedData === 'object' && Array.isArray(parsedData.cartoes)) {
+        // == FLUXO JSON ==
+        const cartoesMapeados = parsedData.cartoes.map(item => ({
+          frente: item.frente || item.front || '',
+          verso: item.verso || item.back || ''
+        })).filter(c => c.frente.trim() !== '' && c.verso.trim() !== '');
+
+        if (cartoesMapeados.length === 0) {
+          Alert.alert('Arquivo Vazio', 'A propriedade "cartoes" não contém itens válidos no JSON.');
+          return;
+        }
+
+        const newDeckId = genId();
+        const title = parsedData.conjunto || `Importado via JSON (${new Date().toLocaleDateString('pt-BR')})`;
+        const desc = parsedData.descricao || 'Conjunto criado por importação de arquivo JSON.';
+
+        await db.insert(sets).values({
+          id: newDeckId,
+          title: title,
+          description: desc,
+          frontLanguage: 'pt-BR',
+          backLanguage: 'en-US',
+        }).returning();
+
+        for (const cardData of cartoesMapeados) {
+          await db.insert(cards).values({
+            id: genId(),
+            set_id: newDeckId,
+            front: cardData.frente.trim(),
+            back: cardData.verso.trim(),
+            next_review_date: Date.now(),
+            ease_factor: 250,
+            difficultyStatus: 'new',
+          }).returning();
+        }
+
+        Alert.alert('Sucesso', `Conjunto '${title}' importado via JSON com ${cartoesMapeados.length} cartões!`);
+      } else {
+        // == FLUXO TXT PROPRIETÁRIO (#CONJUNTO) ==
+        await processarDeckDeFlashcards(fileContent);
+      }
+
+    } catch (error) {
+      console.error('Erro ao importar arquivo:', error);
+      Alert.alert('Erro', 'Ocorreu um erro ao tentar ler o arquivo selecionado.');
+    }
+  };
 
   const handleMenuClick = async (action) => {
     const deckId = menuAtivo;
@@ -210,6 +572,31 @@ function DeckListScreen({ decks = [], totalCardsCount = 0, deckStats = [] }) {
   const handleReviewAll = () => navigation.navigate('Review', { reviewAll: true, studyMode: 'review' });
   const handlePracticeAll = () => navigation.navigate('Review', { practiceAll: true, studyMode: 'practice' });
 
+  const cicloConfig = useCicloConfigStore();
+  const handleCycleStudy = async () => {
+    try {
+      const ciclo = await buildCycleCards({
+        qtdConjuntosAtrasados: cicloConfig.qtdConjuntosAtrasados,
+        cardsPorConjuntoAtrasado: cicloConfig.cardsPorConjuntoAtrasado,
+        cardsPorConjuntoObrigatorio: cicloConfig.cardsPorConjuntoObrigatorio,
+        cardsErrosAnteriores: cicloConfig.cardsErrosAnteriores,
+        cardsImportantes: cicloConfig.cardsImportantes,
+        qtdConjuntosFixosPorCiclo: cicloConfig.qtdConjuntosFixosPorCiclo,
+        cardsPorConjuntoFixo: cicloConfig.cardsPorConjuntoFixo,
+        limiteAtivo: cicloConfig.limiteAtivo,
+        limiteDiarioTotal: cicloConfig.limiteDiarioTotal,
+      });
+      if (ciclo.cards.length === 0) {
+        Alert.alert('Ciclo Vazio', 'Nenhum card disponível para o ciclo de estudo com as configurações atuais.');
+        return;
+      }
+      navigation.navigate('Review', { cycleCardIds: ciclo.cards.map(c => c.id) });
+    } catch (e) {
+      console.error('Erro ao montar ciclo:', e);
+      Alert.alert('Erro', 'Não foi possível montar o ciclo de estudo.');
+    }
+  };
+
   const filteredDecks = decks.filter(deck => (deck.title || '').toLowerCase().includes(searchQuery.toLowerCase()));
 
   return (
@@ -262,6 +649,9 @@ function DeckListScreen({ decks = [], totalCardsCount = 0, deckStats = [] }) {
         </TouchableOpacity>
         <TouchableOpacity onPress={handlePracticeAll}>
           <Text style={styles.actionBtn}>PRATIQUE TUDO</Text>
+        </TouchableOpacity>
+        <TouchableOpacity onPress={handleCycleStudy}>
+          <Text style={[styles.actionBtn, { color: '#4DA8DA' }]}>📚 CICLO</Text>
         </TouchableOpacity>
       </View>
 
@@ -397,13 +787,163 @@ function DeckListScreen({ decks = [], totalCardsCount = 0, deckStats = [] }) {
           </View>
         </TouchableOpacity>
       </Modal>
+      <Modal visible={importModalVisible} transparent animationType="fade" onRequestClose={() => setImportModalVisible(false)}>
+        <View style={styles.wsModalOverlay}>
+          <View style={styles.wsModalBox}>
+            <Text style={styles.wsModalTitle}>Importar Flashcards</Text>
+            <Text style={{ color: theme.gray, fontSize: 12, marginBottom: 16 }}>
+              ⚠️ O campo de texto tem limite de ~3600 caracteres. Para importar 175+ cartões, use um arquivo.
+            </Text>
+
+            <Text style={{ color: theme.white, fontSize: 14, fontWeight: 'bold', marginBottom: 8 }}>Opção 1: Arquivo (.txt / .md)</Text>
+            <TouchableOpacity onPress={handleFileImport} style={{ marginBottom: 16 }}>
+              <View style={[styles.wsModalConfirm, { width: '100%', backgroundColor: theme.purple || '#673AB7' }]}>
+                <Text style={styles.wsModalConfirmText}>📂 Selecionar Arquivo</Text>
+              </View>
+            </TouchableOpacity>
+
+            <Text style={{ color: theme.white, fontSize: 14, fontWeight: 'bold', marginBottom: 8 }}>Opção 2: Área de Transferência (JSON)</Text>
+            <TouchableOpacity onPress={handleJSONClipboardImport} style={{ marginBottom: 16 }}>
+              <View style={[styles.wsModalConfirm, { width: '100%', backgroundColor: '#2196F3' }]}>
+                <Text style={styles.wsModalConfirmText}>📋 Importar JSON Copiado</Text>
+              </View>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+                onPress={() => {
+                  if (tempImportText) {
+                    setImportText(tempImportText);
+                  } else {
+                    Alert.alert('Aviso', 'O texto de teste está vazio.');
+                  }
+                }}
+                style={{ marginBottom: 12 }}
+              >
+                <View style={[styles.wsModalConfirm, { width: '100%', backgroundColor: '#4CAF50' }]}>
+                  <Text style={styles.wsModalConfirmText}>🧪 Preencher Texto de Teste (TXT)</Text>
+                </View>
+              </TouchableOpacity>
+
+            <Text style={{ color: theme.white, fontSize: 14, fontWeight: 'bold', marginBottom: 8 }}>Opção 3: Colar Texto (limitado)</Text>
+            <TextInput
+              style={[ styles.wsInput, { height: 120, textAlignVertical: 'top' }]}
+              placeholder="Cole pequenos conjuntos aqui..."
+              placeholderTextColor="#666"
+              multiline
+              scrollEnabled
+              maxLength={3500}
+              value={importText}
+              onChangeText={setImportText}
+            />
+            <View style={[ styles.wsModalActions, { marginTop: 16 } ]}>
+              <TouchableOpacity onPress={() => setImportModalVisible(false)}>
+                <Text style={styles.wsModalCancel}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => { if (importText.trim()) { processarDeckDeFlashcards(importText); setImportModalVisible(false); } else { Alert.alert('Erro', 'O texto está vazio.'); } }} >
+                <View style={styles.wsModalConfirm}><Text style={styles.wsModalConfirmText}>Importar Texto</Text></View>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Modal de Configuração de Vozes */}
+      <Modal visible={voicesConfigModalVisible} transparent animationType="fade" onRequestClose={() => setVoicesConfigModalVisible(false)}>
+        <View style={styles.wsModalOverlay}>
+          <View style={[styles.wsModalBox, { maxHeight: '80%', width: '90%' }]}>
+            <Text style={styles.wsModalTitle}>Configurar Vozes</Text>
+            
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, backgroundColor: theme.card, padding: 12, borderRadius: 8 }}>
+              <View style={{ flex: 1, paddingRight: 8 }}>
+                <Text style={{ color: theme.white, fontSize: 14, fontWeight: 'bold' }}>Leitura Automática</Text>
+                <Text style={{ color: theme.gray, fontSize: 12, marginTop: 4 }}>Ler automaticamente ao abrir ou virar os cards.</Text>
+              </View>
+              <Switch 
+                value={autoPlayAudio} 
+                onValueChange={handleSetAutoPlayAudio} 
+                trackColor={{ false: theme.sep, true: theme.purple || '#673AB7' }}
+                thumbColor={'#FFF'}
+              />
+            </View>
+
+            <Text style={{ color: theme.gray, fontSize: 13, marginBottom: 12, textAlign: 'center' }}>
+              Selecione o idioma abaixo para escolher a voz que será utilizada durante a leitura dos cards.
+            </Text>
+            
+            <ScrollView style={{ marginTop: 8, marginBottom: 16 }}>
+              {SUPPORTED_LANGUAGES.map(lang => (
+                <View key={lang.code} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: theme.sep }}>
+                  <Text style={{ color: theme.white, fontSize: 15 }}>{lang.icon} {lang.name}</Text>
+                  <TouchableOpacity 
+                    style={{ backgroundColor: theme.card, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 6, maxWidth: 150 }}
+                    onPress={() => {
+                      setSelectedLang(lang.code);
+                      setVoiceSelectionModalVisible(true);
+                    }}
+                  >
+                    <Text style={{ color: theme.purple || '#673AB7', fontSize: 13, textAlign: 'center', fontWeight: 'bold' }} numberOfLines={1}>
+                      {preferredVoices?.[lang.code] ? (availableVoices.find(v => v.identifier === preferredVoices[lang.code])?.name || 'Personalizada') : 'Padrão'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              ))}
+            </ScrollView>
+
+            <View style={styles.wsModalActions}>
+              <TouchableOpacity onPress={() => setVoicesConfigModalVisible(false)}>
+                <View style={[styles.wsModalConfirm, { width: '100%', backgroundColor: theme.purple || '#673AB7', minWidth: 100, alignItems: 'center' }]}>
+                  <Text style={styles.wsModalConfirmText}>Concluir</Text>
+                </View>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Modal de Seleção de Voz */}
+      <Modal visible={voiceSelectionModalVisible} transparent animationType="fade" onRequestClose={() => setVoiceSelectionModalVisible(false)}>
+        <View style={styles.wsModalOverlay}>
+          <View style={styles.wsModalBox}>
+            <Text style={styles.wsModalTitle}>Selecionar Voz</Text>
+            <FlatList
+              style={{ maxHeight: 300 }}
+              data={availableVoices.filter(v => v.language.startsWith(selectedLang.split('-')[0]))}
+              keyExtractor={(item) => item.identifier}
+              renderItem={({ item }) => (
+                <TouchableOpacity style={{ padding: 12, borderBottomWidth: 1, borderBottomColor: theme.sep, flexDirection: 'row', alignItems: 'center' }} onPress={() => {
+                  handleSetPreferredVoice(selectedLang, item.identifier);
+                  setVoiceSelectionModalVisible(false);
+                }}>
+                  <Text style={{ fontSize: 20, marginRight: 12 }}>{getVoiceEmoji(item.name)}</Text>
+                  <Text style={{ color: theme.white, fontWeight: preferredVoices?.[selectedLang] === item.identifier ? 'bold' : 'normal', flex: 1 }}>
+                    {item.name} ({item.quality})
+                  </Text>
+                </TouchableOpacity>
+              )}
+              ListEmptyComponent={<Text style={{ color: theme.gray, textAlign: 'center', padding: 16 }}>Nenhuma voz encontrada.</Text>}
+            />
+            <TouchableOpacity style={{ padding: 12, marginTop: 8 }} onPress={() => {
+              handleSetPreferredVoice(selectedLang, null);
+              setVoiceSelectionModalVisible(false);
+            }}>
+              <Text style={{ color: '#F44336', textAlign: 'center' }}>Restaurar Padrão do Sistema</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={{ padding: 12, backgroundColor: theme.card, borderRadius: 8, marginTop: 8 }} onPress={() => setVoiceSelectionModalVisible(false)}>
+              <Text style={{ color: theme.white, textAlign: 'center' }}>Fechar</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
       <MenuScreen
         visible={menuVisible}
         onClose={() => setMenuVisible(false)}
         onMenuItemPress={(id) => {
           setMenuVisible(false);
+          if (id === 'import') handleImport();
           if (id === 'statistics') navigation.navigate('Statistics');
           if (id === 'settings') navigation.navigate('Configuracoes');
+          if (id === 'voices') setVoicesConfigModalVisible(true);
         }}
         isDark={isDark}
         toggleTheme={() => setIsDark(!isDark)}

@@ -1,0 +1,305 @@
+╔════════════════════════════════════════════════════════════════════════════╗
+║                                                                              ║
+║                   ✅ API CONFIGURATION SETUP COMPLETO                       ║
+║                                                                              ║
+║                    React Native + Expo SDK 56                               ║
+║                    Solução para "Host Unreachable"                          ║
+║                                                                              ║
+╚════════════════════════════════════════════════════════════════════════════╝
+
+
+📁 ARQUIVOS CRIADOS - 11 arquivos
+═══════════════════════════════════════════════════════════════════════════
+
+🎯 CORE (Essencial)
+────────────────────────────────────────────────────────────────────────────
+✨ src/config/api.config.js
+   └─ ARQUIVO PRINCIPAL: Detecção automática de ambiente
+   └─ Exporta: BASE_URL dinâmico
+   └─ Suporta: Emulador, Device físico, iOS, Produção
+   
+✨ src/config/api.service.js  
+   └─ Helpers: apiGet(), apiPost(), apiPut(), apiDelete()
+   └─ Tratamento de erros automático
+   └─ Headers padrão inclusos
+
+
+📚 DOCUMENTAÇÃO & SUPORTE
+────────────────────────────────────────────────────────────────────────────
+📖 src/config/README.md
+   └─ Documentação COMPLETA com exemplos
+   └─ Referência de funções
+   └─ Melhores práticas
+
+📖 SETUP_API_GUIDE.md (na raiz)
+   └─ Guia RÁPIDO - 5 minutos de setup
+   └─ Checklist visual
+   └─ Troubleshooting
+
+📖 src/config/API_SETUP_GUIDE.js
+   └─ Troubleshooting DETALHADO
+   └─ 5 problemas comuns com soluções
+
+📖 API_CONFIGURATION_SUMMARY.md (na raiz)
+   └─ Resumo EXECUTIVO
+   └─ Referência rápida
+
+
+🔧 INTEGRAÇÃO & EXEMPLOS
+────────────────────────────────────────────────────────────────────────────
+💡 src/config/api.example.js
+   └─ Exemplos REAIS: deckService, cardService, userService
+   └─ Padrões de uso em componentes
+
+💡 src/config/ApiContext.example.js
+   └─ Como integrar com AppContext
+   └─ Hook useApiContext()
+   └─ Estrutura recomendada
+
+
+🧪 TESTE & VALIDAÇÃO
+────────────────────────────────────────────────────────────────────────────
+🔍 src/config/api.validator.js
+   └─ Validação de configuração
+   └─ Health check
+   └─ Relatório de debug
+
+🧪 test-api-connection.js (na raiz)
+   └─ Script Node para testar URLs
+   └─ Execute: npm run test:api
+   └─ Diagnóstico automático
+
+📝 package.json (ATUALIZADO)
+   └─ Novos scripts:
+      ├─ npm run test:api
+      └─ npm run test:api-verbose
+
+
+⚡ QUICK START (3 PASSOS)
+═══════════════════════════════════════════════════════════════════════════
+
+1️⃣  ENCONTRAR SEU IP
+─────────────────────────────────────────────────────────────────────────────
+Abra PowerShell:
+$ ipconfig | findstr "IPv4"
+
+Resultado esperado:
+$ IPv4 Address . . . . . . . . . . . : 192.168.1.100
+                                        ^^^^^^^^^^^^^^^^ Copie este IP
+
+
+2️⃣  CONFIGURAR (ÚNICO PASSO!)
+─────────────────────────────────────────────────────────────────────────────
+Edite: src/config/api.config.js
+
+Encontre:
+   WINDOWS_MACHINE_IP: 'YOUR_WINDOWS_IP_HERE',
+
+Substitua por seu IP:
+   WINDOWS_MACHINE_IP: '192.168.1.100',
+
+SALVE! ✅
+
+
+3️⃣  USAR NO CÓDIGO
+─────────────────────────────────────────────────────────────────────────────
+import { apiGet, apiPost } from './config/api.service';
+
+// Pronto! Usa a URL correta automaticamente
+const users = await apiGet('/users');
+const newUser = await apiPost('/users', { name: 'João' });
+
+
+🎯 URLS DETECTADAS AUTOMATICAMENTE
+═══════════════════════════════════════════════════════════════════════════
+
+┌─────────────────────────────────────────────────────────────────────────┐
+│ CENÁRIO                │ URL USADA              │ __DEV__ │ EMULADOR    │
+├─────────────────────────────────────────────────────────────────────────┤
+│ Emulador Android       │ http://10.0.2.2:3000  │ true    │ true        │
+│ Device Android (seu)   │ http://192.168.x.x:... │ true    │ false       │
+│ iOS Simulator          │ http://localhost:3000 │ true    │ false       │
+│ Release/Produção       │ https://api.prod.com  │ false   │ false       │
+└─────────────────────────────────────────────────────────────────────────┘
+
+
+🧪 TESTAR CONEXÃO
+═══════════════════════════════════════════════════════════════════════════
+
+Execute:
+$ npm run test:api
+
+Resultado esperado:
+✅ Emulator (Android)
+   ✅ Connected (45ms)
+
+✅ Device (192.168.1.100)
+   ✅ Connected (127ms)
+
+Se tudo passar: API está acessível! ✨
+
+
+📊 ESTRUTURA DE ARQUIVOS
+═══════════════════════════════════════════════════════════════════════════
+
+Project Root
+│
+├── src/
+│   └── config/                          ← 🎯 TUDO AQUI!
+│       ├── api.config.js                ⭐ PRINCIPAL
+│       ├── api.service.js               Helpers HTTP
+│       ├── api.validator.js             Validação
+│       ├── api.example.js               Exemplos
+│       ├── ApiContext.example.js        Integração Context
+│       ├── API_SETUP_GUIDE.js           Troubleshooting
+│       └── README.md                    Documentação
+│
+├── SETUP_API_GUIDE.md                   📖 Quick Start
+├── API_CONFIGURATION_SUMMARY.md         📖 Resumo
+├── test-api-connection.js               🧪 Script teste
+│
+└── package.json                         (atualizado)
+
+
+💡 EXEMPLOS DE CÓDIGO
+═══════════════════════════════════════════════════════════════════════════
+
+OPÇÃO 1: Usar BASE_URL diretamente
+────────────────────────────────────────────────────────────────────────────
+import apiConfig from './config/api.config';
+
+const response = await fetch(`${apiConfig.BASE_URL}/users`);
+const data = await response.json();
+
+
+OPÇÃO 2: Usar helpers (RECOMENDADO)
+────────────────────────────────────────────────────────────────────────────
+import { apiGet, apiPost, apiPut, apiDelete } from './config/api.service';
+
+const users = await apiGet('/users');
+const user = await apiPost('/users', { name: 'João' });
+await apiPut(`/users/${id}`, { name: 'Atualizado' });
+await apiDelete(`/users/${id}`);
+
+
+OPÇÃO 3: Usar builder de URL
+────────────────────────────────────────────────────────────────────────────
+import apiConfig from './config/api.config';
+
+const url = apiConfig.getEndpoint('/users/123');
+const response = await fetch(url, {
+  headers: apiConfig.getDefaultHeaders(),
+});
+
+
+🔍 DEBUG: Ver qual URL está sendo usada
+════════════════════════════════════════════════════════════════════════════
+
+import apiConfig from './config/api.config';
+
+console.log(apiConfig.getDebugInfo());
+
+Resultado:
+{
+  baseUrl: "http://10.0.2.2:3000",
+  platform: "android",
+  isDev: true,
+  isRelease: false,
+  isEmulator: true,
+  windowsIp: "192.168.1.100"
+}
+
+
+🚀 PRÓXIMOS PASSOS
+═══════════════════════════════════════════════════════════════════════════
+
+1. Leia: SETUP_API_GUIDE.md (5 minutos)
+   └─ Setup rápido com checklist
+
+2. Configure seu IP em: src/config/api.config.js
+   └─ Copie seu IP do PowerShell
+
+3. Teste: npm run test:api
+   └─ Confirma que as URLs funcionam
+
+4. Use nos componentes:
+   └─ import { apiGet } from './config/api.service'
+
+5. Para produção:
+   └─ Atualize PROD_API_URL com sua URL real (HTTPS)
+
+
+❓ TROUBLESHOOTING RÁPIDO
+═══════════════════════════════════════════════════════════════════════════
+
+Problema: "Host Unreachable"
+Solução:
+  1. npm run test:api
+  2. Verifique: netstat -ano | findstr :3000
+  3. Firewall: Settings → Windows Defender Firewall → Permitir
+  4. IP: Confira em api.config.js
+
+Problema: "ERR_CLEARTEXT_NOT_PERMITTED" (Android 9+)
+Solução:
+  1. Edite: android/app/src/debug/AndroidManifest.xml
+  2. Adicione: android:usesCleartextTraffic="true"
+
+Problema: Device físico não conecta
+Solução:
+  1. Device e PC na mesma rede WiFi?
+  2. IP do Windows está correto em api.config.js?
+  3. Execute: npm run test:api
+
+
+📚 DOCUMENTAÇÃO DISPONÍVEL
+═══════════════════════════════════════════════════════════════════════════
+
+Guias:
+  • SETUP_API_GUIDE.md ......................... Quick start (5 min)
+  • API_CONFIGURATION_SUMMARY.md ............. Resumo executivo
+  • src/config/README.md ..................... Documentação completa
+
+Referência:
+  • src/config/API_SETUP_GUIDE.js ........... Troubleshooting
+  • src/config/api.example.js .............. Exemplos reais
+
+Integração:
+  • src/config/ApiContext.example.js ....... Context integration
+
+Teste:
+  • src/config/api.validator.js ............ Validação
+  • test-api-connection.js ................. Script de teste
+
+
+✨ DESTAQUES TÉCNICOS
+═══════════════════════════════════════════════════════════════════════════
+
+✅ Zero Dependências
+   └─ Usa apenas: react-native (já instalado)
+
+✅ Totalmente Automático
+   └─ Detecta: Emulador, Device, iOS, Dev, Release
+
+✅ Production-Ready
+   └─ Validação, Debug, Error Handling inclusos
+
+✅ Clean Code
+   └─ Bem documentado, comentado, exemplos completos
+
+✅ Melhores Práticas
+   └─ Segue padrões Expo SDK 56
+   └─ Compatível com React 19 & React Native 0.85
+
+
+═══════════════════════════════════════════════════════════════════════════
+
+🎉 TUDO PRONTO! 
+
+Seu app agora pode:
+  ✅ Acessar API em emulador Android (10.0.2.2)
+  ✅ Acessar API em device físico (seu IP)
+  ✅ Acessar API em iOS (localhost)
+  ✅ Fazer switch automático dev/prod
+  ✅ Funcionar sem "host unreachable"!
+
+═══════════════════════════════════════════════════════════════════════════

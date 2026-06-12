@@ -8,30 +8,58 @@ import { eq } from 'drizzle-orm';
 import db from '../../db';
 import { sets, cards } from '../../db/schema';
 import { AppContext } from '../context/AppContext';
+import { toggleCardImportant } from '../../dbServices.drizzle';
+
+const formatTextForDisplay = (text) => {
+  if (!text) return '';
+  return text.replace(/<\/?en>/ig, '');
+};
+
+const playMixedTTS = (text, baseLang, preferredVoices, overrideVoice = null) => {
+  if (!text) return;
+  const parts = text.split(/(<en>.*?<\/en>)/ig);
+  for (const p of parts) {
+    if (!p) continue;
+    if (p.toLowerCase().startsWith('<en>') && p.toLowerCase().endsWith('</en>')) {
+      const enText = p.replace(/<\/?en>/ig, '').trim();
+      if (enText) {
+        const enOpts = { language: 'en-US' };
+        if (preferredVoices?.['en-US']) enOpts.voice = preferredVoices['en-US'];
+        Speech.speak(enText, enOpts);
+      }
+    } else {
+      const ptText = p.trim();
+      if (ptText) {
+        const baseOpts = { language: baseLang };
+        if (overrideVoice) baseOpts.voice = overrideVoice;
+        else if (preferredVoices?.[baseLang]) baseOpts.voice = preferredVoices[baseLang];
+        Speech.speak(ptText, baseOpts);
+      }
+    }
+  }
+};
 
 const DeckCardItem = ({ item, deck, onMenuPress, theme, styles, preferredVoices }) => {
-  const [favorited, setFavorited] = useState(false);
+  const [favorited, setFavorited] = useState(item.isImportant === 1);
 
   return (
     <View style={styles.ddCard}>
       <View style={{ flex: 1 }}>
-        <Text style={styles.ddCardFront} numberOfLines={3}>{item.front}</Text>
-        <Text style={styles.ddCardBack} numberOfLines={3}>{item.back}</Text>
+        <Text style={styles.ddCardFront} numberOfLines={3}>{formatTextForDisplay(item.front)}</Text>
+        <Text style={styles.ddCardBack} numberOfLines={3}>{formatTextForDisplay(item.back)}</Text>
       </View>
       <View style={styles.ddCardFooter}>
         <TouchableOpacity onPress={() => {
           Speech.stop();
           const frontLang = deck.frontLanguage || 'pt-BR';
           const backLang = deck.backLanguage || 'en-US';
-          const frontOpts = { language: frontLang };
-          const backOpts = { language: backLang };
-          if (preferredVoices?.[frontLang]) frontOpts.voice = preferredVoices[frontLang];
-          if (preferredVoices?.[backLang]) backOpts.voice = preferredVoices[backLang];
-          
-          Speech.speak(item.front, frontOpts);
-          Speech.speak(item.back, backOpts);
+          playMixedTTS(item.front, frontLang, preferredVoices);
+          playMixedTTS(item.back, backLang, preferredVoices);
         }}><Text style={styles.ddCardIcon}>🔊</Text></TouchableOpacity>
-        <TouchableOpacity onPress={() => setFavorited(!favorited)}>
+        <TouchableOpacity onPress={async () => {
+          const newVal = await toggleCardImportant(item.id);
+          setFavorited(newVal === 1);
+        }}>
           <Text style={[styles.ddCardIcon, favorited && { color: '#FF6B6B' }]}>{favorited ? '♥' : '♡'}</Text>
         </TouchableOpacity>
         <TouchableOpacity onPress={() => onMenuPress(item)}><Text style={styles.ddCardIcon}>⋮</Text></TouchableOpacity>

@@ -10,7 +10,36 @@ import LottieView from 'lottie-react-native';
 import { AppContext } from '../context/AppContext';
 import db from '../../db';
 import { sets, cards } from '../../db/schema';
-import { updateCardDifficulty } from '../../dbServices.drizzle';
+import { updateCardDifficulty, toggleCardImportant } from '../../dbServices.drizzle';
+
+const formatTextForDisplay = (text) => {
+  if (!text) return '';
+  return text.replace(/<\/?en>/ig, '');
+};
+
+const playMixedTTS = (text, baseLang, preferredVoices, overrideVoice = null) => {
+  if (!text) return;
+  const parts = text.split(/(<en>.*?<\/en>)/ig);
+  for (const p of parts) {
+    if (!p) continue;
+    if (p.toLowerCase().startsWith('<en>') && p.toLowerCase().endsWith('</en>')) {
+      const enText = p.replace(/<\/?en>/ig, '').trim();
+      if (enText) {
+        const enOpts = { language: 'en-US' };
+        if (preferredVoices?.['en-US']) enOpts.voice = preferredVoices['en-US'];
+        Speech.speak(enText, enOpts);
+      }
+    } else {
+      const ptText = p.trim();
+      if (ptText) {
+        const baseOpts = { language: baseLang };
+        if (overrideVoice) baseOpts.voice = overrideVoice;
+        else if (preferredVoices?.[baseLang]) baseOpts.voice = preferredVoices[baseLang];
+        Speech.speak(ptText, baseOpts);
+      }
+    }
+  }
+};
 
 // Componente de revisão de flashcards
 export function ReviewScreenComponent({ deck, cards = [], isAllMode = false }) {
@@ -22,6 +51,14 @@ export function ReviewScreenComponent({ deck, cards = [], isAllMode = false }) {
     incrementDailyReview
   } = useContext(AppContext);
   
+  // ── Lendo o Estado Global (Zustand) ──
+  const cicloConfig = require('../store/useCicloConfigStore').useCicloConfigStore();
+  
+  // Se o limite estiver ativo, usamos o do Ciclo. Se não, mantemos o fallback do AppContext ou infinito
+  const effectiveDailyGoal = cicloConfig.limiteAtivo 
+    ? cicloConfig.limiteDiarioTotal 
+    : dailyGoal;
+
   const C = theme;
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
@@ -30,7 +67,7 @@ export function ReviewScreenComponent({ deck, cards = [], isAllMode = false }) {
   const [index, setIndex] = useState(0);
   const [flipped, setFlipped] = useState(false);
   const [ratings, setRatings] = useState({ hard: 0, good: 0, easy: 0 });
-  const [favorited, setFavorited] = useState(false);
+  const [favorited, setFavorited] = useState(cards[0]?.isImportant === 1);
   const [lottieAnim, setLottieAnim] = useState(null);
   const [availableVoices, setAvailableVoices] = useState([]);
 
@@ -61,13 +98,7 @@ export function ReviewScreenComponent({ deck, cards = [], isAllMode = false }) {
       Speech.stop();
       const currentLang = flipped ? (deck?.backLanguage || 'en-US') : (deck?.frontLanguage || 'pt-BR');
       const textToSpeak = flipped ? cards[index].back : cards[index].front;
-      const voiceOptions = { language: currentLang };
-      
-      if (preferredVoices && preferredVoices[currentLang]) {
-        voiceOptions.voice = preferredVoices[currentLang];
-      }
-      
-      Speech.speak(textToSpeak, voiceOptions);
+      playMixedTTS(textToSpeak, currentLang, preferredVoices);
     }
   }, [index, flipped, autoPlayAudio, cards, deck, preferredVoices]);
 
@@ -94,7 +125,21 @@ export function ReviewScreenComponent({ deck, cards = [], isAllMode = false }) {
     }
     
     Speech.stop();
-    Speech.speak(textToSpeak, { language: currentLang, voice: nextVoice.identifier });
+    playMixedTTS(textToSpeak, currentLang, preferredVoices, nextVoice.identifier);
+  };
+
+  // Sincroniza o estado do coração ao trocar de card
+  useEffect(() => {
+    if (cards[index]) {
+      setFavorited(cards[index].isImportant === 1);
+    }
+  }, [index, cards]);
+
+  const handleToggleFavorite = async () => {
+    const currentCard = cards[index];
+    if (!currentCard) return;
+    const newVal = await toggleCardImportant(currentCard.id);
+    setFavorited(newVal === 1);
   };
 
   const handleRate = (type) => {
@@ -137,7 +182,7 @@ export function ReviewScreenComponent({ deck, cards = [], isAllMode = false }) {
             <Text style={[styles.ratingChipText, { color: C.white }]}>Fácil: {ratings.easy}</Text>
           </View>
         </View>
-        <Text style={{ color: C.gray, marginBottom: 24, fontSize: 16 }}>Meta diária: {cardsReviewedToday} / {dailyGoal}</Text>
+        <Text style={{ color: C.gray, marginBottom: 24, fontSize: 16 }}>Meta diária: {cardsReviewedToday} / {effectiveDailyGoal}</Text>
         <View style={{ flexDirection: 'row', gap: 12, marginTop: 16, flexWrap: 'wrap', justifyContent: 'center' }}>
           <TouchableOpacity style={[styles.doneActionBtn, { backgroundColor: C.gray }]} onPress={onClose}>
             <Text style={[styles.backBtnText, { color: C.white }]}>Voltar</Text>
@@ -168,21 +213,19 @@ export function ReviewScreenComponent({ deck, cards = [], isAllMode = false }) {
       </View>
 
       <View style={{ alignItems: 'center', paddingBottom: 8 }}>
-        <Text style={{ color: C.gray, fontSize: 12 }}>Treinados hoje: {cardsReviewedToday} / {dailyGoal}</Text>
+        <Text style={{ color: C.gray, fontSize: 12 }}>Treinados hoje: {cardsReviewedToday} / {effectiveDailyGoal}</Text>
         {isAllMode && <Text style={{ color: C.purple, fontSize: 12, fontWeight: 'bold' }}>{deck?.title}</Text>}
       </View>
 
       <TouchableOpacity style={[styles.reviewCard, { backgroundColor: C.reviewCard }]} onPress={() => setFlipped(f => !f)} activeOpacity={0.9}>
-        <TouchableOpacity style={styles.favBtn} onPress={() => setFavorited(f => !f)}>
-          <Text style={{ fontSize: 22, color: favorited ? '#FF6B6B' : C.favIcon }}>♡</Text>
+        <TouchableOpacity style={styles.favBtn} onPress={handleToggleFavorite}>
+          <Text style={{ fontSize: 22, color: favorited ? '#FF6B6B' : C.favIcon }}>{favorited ? '♥' : '♡'}</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.audioBtn} onPress={() => {
           Speech.stop();
           const currentLang = flipped ? (deck?.backLanguage || 'en-US') : (deck?.frontLanguage || 'pt-BR');
           const textToSpeak = flipped ? card.back : card.front;
-          const voiceOptions = { language: currentLang };
-          if (preferredVoices && preferredVoices[currentLang]) voiceOptions.voice = preferredVoices[currentLang];
-          Speech.speak(textToSpeak, voiceOptions);
+          playMixedTTS(textToSpeak, currentLang, preferredVoices);
         }}>
           <Text style={{ fontSize: 22 }}>🔊</Text>
         </TouchableOpacity>
@@ -196,7 +239,7 @@ export function ReviewScreenComponent({ deck, cards = [], isAllMode = false }) {
             { color: C.white },
             cardFontSize ? { fontSize: flipped ? Math.max(14, cardFontSize * 0.75) : cardFontSize } : {}
           ]}> 
-            {flipped ? card.back : card.front}
+            {flipped ? formatTextForDisplay(card.back) : formatTextForDisplay(card.front)}
           </Text>
         </View>
 
@@ -226,7 +269,7 @@ export function ReviewScreenComponent({ deck, cards = [], isAllMode = false }) {
 
 export default function ReviewScreen() {
   const route = useRoute();
-  const { deckId, reviewAll, practiceAll } = route.params || {};
+  const { deckId, reviewAll, practiceAll, cycleCardIds } = route.params || {};
 
   const { data: deckData } = useLiveQuery(db.select().from(sets).where(eq(sets.id, deckId || '')));
   const { data: deckCardsData } = useLiveQuery(db.select().from(cards).where(eq(cards.set_id, deckId || '')));
@@ -237,7 +280,22 @@ export default function ReviewScreen() {
   const [multiCards, setMultiCards] = useState(null);
 
   useEffect(() => {
-    if (!deckId && (reviewAll || practiceAll)) {
+    if (cycleCardIds && cycleCardIds.length > 0) {
+      const fetchCycleCards = async () => {
+        try {
+          const { inArray } = require('drizzle-orm');
+          const cycleCards = await db.select().from(cards).where(inArray(cards.id, cycleCardIds)).all();
+          // Mantém a ordem original dos IDs
+          const orderMap = new Map(cycleCardIds.map((id, idx) => [id, idx]));
+          cycleCards.sort((a, b) => (orderMap.get(a.id) || 0) - (orderMap.get(b.id) || 0));
+          setMultiCards(cycleCards);
+        } catch (e) {
+          console.error('Erro ao carregar cards do ciclo:', e);
+          setMultiCards([]);
+        }
+      };
+      fetchCycleCards();
+    } else if (!deckId && (reviewAll || practiceAll)) {
       const fetchMulti = async () => {
         try {
           const now = Date.now();
@@ -258,7 +316,12 @@ export default function ReviewScreen() {
       };
       fetchMulti();
     }
-  }, [deckId, reviewAll, practiceAll]);
+  }, [deckId, reviewAll, practiceAll, cycleCardIds]);
+
+  if (cycleCardIds) {
+    if (!multiCards) return <View style={{ flex: 1, backgroundColor: '#000' }} />;
+    return <ReviewScreenComponent deck={{ title: 'Ciclo de Estudo' }} cards={multiCards} isAllMode={true} />;
+  }
 
   if (reviewAll || practiceAll) {
     if (!multiCards) return <View style={{ flex: 1, backgroundColor: '#000' }} />;

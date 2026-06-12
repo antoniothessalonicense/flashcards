@@ -1,0 +1,23 @@
+{
+  "servers": {
+    "expo-local": {
+      "command": "npx",
+      "args": [
+        "expo-mcp",
+        "--dev-server-url",
+        "http://localhost:8081"
+      ],
+      "env": {
+        "EXPO_TOKEN": "seu_token_copiado_aqui"
+      }
+    },
+    "filesystem": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-filesystem",
+        "."
+      ]
+    }
+  }
+}

@@ -108,8 +108,36 @@ const initializeDatabase = async (db) => {
     if (!cardsColumns.includes('difficultyStatus')) {
       await db.execAsync("ALTER TABLE cards ADD COLUMN difficultyStatus TEXT NOT NULL DEFAULT 'new';");
     }
+    if (!cardsColumns.includes('isImportant')) {
+      await db.execAsync("ALTER TABLE cards ADD COLUMN isImportant INTEGER NOT NULL DEFAULT 0;");
+      console.log("Migração: Coluna isImportant adicionada!");
+    }
+    await db.execAsync(`CREATE INDEX IF NOT EXISTS idx_cards_isImportant ON cards(isImportant);`);
 
-    // 3. Semeando dados (agora as colunas obrigatórias estão garantidas)
+    // 3. Criação/migração da tabela ciclo_configs
+    await db.execAsync(`
+      CREATE TABLE IF NOT EXISTS ciclo_configs (
+        id TEXT PRIMARY KEY NOT NULL,
+        limiteDiarioTotal INTEGER NOT NULL DEFAULT 0,
+        limiteAtivo INTEGER NOT NULL DEFAULT 0,
+        cardsPorConjuntoObrigatorio INTEGER NOT NULL DEFAULT 40,
+        qtdConjuntosAtrasados INTEGER NOT NULL DEFAULT 5,
+        cardsPorConjuntoAtrasado INTEGER NOT NULL DEFAULT 20,
+        cardsErrosAnteriores INTEGER NOT NULL DEFAULT 20,
+        cardsImportantes INTEGER NOT NULL DEFAULT 20,
+        qtdConjuntosFixosPorCiclo INTEGER NOT NULL DEFAULT 1,
+        cardsPorConjuntoFixo INTEGER NOT NULL DEFAULT 20,
+        conjuntosFixosSelecionados TEXT NOT NULL DEFAULT '[]'
+      );
+    `);
+
+    const configInfo = await db.getAllAsync("PRAGMA table_info('ciclo_configs');");
+    const configColumns = configInfo.map(col => col.name);
+    if (!configColumns.includes('conjuntosFixosSelecionados')) {
+      await db.execAsync("ALTER TABLE ciclo_configs ADD COLUMN conjuntosFixosSelecionados TEXT NOT NULL DEFAULT '[]';");
+    }
+
+    // 4. Semeando dados (agora as colunas obrigatórias estão garantidas)
     // Insira sua lógica de popular banco aqui...
 
     console.log('Banco de dados inicializado com sucesso!');

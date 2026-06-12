@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -7,80 +7,77 @@ import {
   TouchableOpacity,
   ScrollView,
   StyleSheet,
-  Alert
+  Alert,
+  Modal,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useNavigation } from '@react-navigation/native';
 import { useLiveQuery } from 'drizzle-orm/expo-sqlite';
 import db from '../../db';
-import { cicloConfigs } from '../../db/schema';
-import { saveCycleConfig } from '../../dbServices.drizzle';
+import { sets } from '../../db/schema';
+import { useCicloConfigStore, CICLO_DEFAULTS } from '../store/useCicloConfigStore';
+import { saveCycleConfig, getCycleConfig, buildCycleCards } from '../../dbServices.drizzle';
 
 const ConfiguracaoCicloScreen: React.FC = () => {
-  const { data: config } = useLiveQuery(
-    db.select().from(cicloConfigs).limit(1)
-  );
+  const navigation = useNavigation();
 
-  const DEFAULTS = {
-    limiteDiarioTotal: 0,
-    limiteAtivo: false,
-    cardsPorConjuntoObrigatorio: 40,
-    qtdConjuntosAtrasados: 5,
-    cardsPorConjuntoAtrasado: 20,
-    cardsErrosAnteriores: 20,
-    cardsImportantes: 20,
-    qtdConjuntosFixosPorCiclo: 1,
-    cardsPorConjuntoFixo: 20,
+  // ── Estado global (Zustand) ──
+  const config = useCicloConfigStore();
+
+  // ── Estado do Modal de resumo ──
+  const [modalVisible, setModalVisible] = useState(false);
+  const [setsModalVisible, setSetsModalVisible] = useState(false);
+  const [cicloResumo, setCicloResumo] = useState<{ atrasados: number; obrigatorios: number; erros: number; importantes: number; fixos: number; total: number } | null>(null);
+  const [cicloCardIds, setCicloCardIds] = useState<string[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  // ── Sets do DB ──
+  const { data: allSetsData } = useLiveQuery(db.select().from(sets));
+  const allSets = allSetsData || [];
+
+  const toggleSetSelection = (setId: string) => {
+    const current = config.conjuntosFixosSelecionados || [];
+    if (current.includes(setId)) {
+      config.updateConfig({ conjuntosFixosSelecionados: current.filter(id => id !== setId) });
+    } else {
+      config.updateConfig({ conjuntosFixosSelecionados: [...current, setId] });
+    }
   };
 
-  const [limiteDiarioTotal, setLimiteDiarioTotal] = useState(DEFAULTS.limiteDiarioTotal);
-  const [limiteAtivo, setLimiteAtivo] = useState(DEFAULTS.limiteAtivo);
-  const [cardsPorConjuntoObrigatorio, setCardsPorConjuntoObrigatorio] = useState(DEFAULTS.cardsPorConjuntoObrigatorio);
-  const [qtdConjuntosAtrasados, setQtdConjuntosAtrasados] = useState(DEFAULTS.qtdConjuntosAtrasados);
-  const [cardsPorConjuntoAtrasado, setCardsPorConjuntoAtrasado] = useState(DEFAULTS.cardsPorConjuntoAtrasado);
-  const [cardsErrosAnteriores, setCardsErrosAnteriores] = useState(DEFAULTS.cardsErrosAnteriores);
-  const [cardsImportantes, setCardsImportantes] = useState(DEFAULTS.cardsImportantes);
-  const [qtdConjuntosFixosPorCiclo, setQtdConjuntosFixosPorCiclo] = useState(DEFAULTS.qtdConjuntosFixosPorCiclo);
-  const [cardsPorConjuntoFixo, setCardsPorConjuntoFixo] = useState(DEFAULTS.cardsPorConjuntoFixo);
-
+  // ── Hidrata do banco na montagem ──
   useEffect(() => {
-    if (config) {
-      setLimiteDiarioTotal(config?.[0]?.limiteDiarioTotal ?? DEFAULTS.limiteDiarioTotal);
-      setLimiteAtivo(Boolean(config?.[0]?.limiteAtivo));
-      setCardsPorConjuntoObrigatorio(config?.[0]?.cardsPorConjuntoObrigatorio ?? DEFAULTS.cardsPorConjuntoObrigatorio);
-      setQtdConjuntosAtrasados(config?.[0]?.qtdConjuntosAtrasados ?? DEFAULTS.qtdConjuntosAtrasados);
-      setCardsPorConjuntoAtrasado(config?.[0]?.cardsPorConjuntoAtrasado ?? DEFAULTS.cardsPorConjuntoAtrasado);
-      setCardsErrosAnteriores(config?.[0]?.cardsErrosAnteriores ?? DEFAULTS.cardsErrosAnteriores);
-      setCardsImportantes(config?.[0]?.cardsImportantes ?? DEFAULTS.cardsImportantes);
-      setQtdConjuntosFixosPorCiclo(config?.[0]?.qtdConjuntosFixosPorCiclo ?? DEFAULTS.qtdConjuntosFixosPorCiclo);
-      setCardsPorConjuntoFixo(config?.[0]?.cardsPorConjuntoFixo ?? DEFAULTS.cardsPorConjuntoFixo);
-    }
-  }, [config]);
+    const loadFromDB = async () => {
+      try {
+        const row = await getCycleConfig();
+        if (row) config.hydrateFromDB(row);
+      } catch (e) {
+        console.error('Erro ao carregar config do ciclo:', e);
+      }
+    };
+    loadFromDB();
+  }, []);
 
+  // ── Ações ──
   const restaurarPadroes = () => {
-    setLimiteDiarioTotal(DEFAULTS.limiteDiarioTotal);
-    setLimiteAtivo(DEFAULTS.limiteAtivo);
-    setCardsPorConjuntoObrigatorio(DEFAULTS.cardsPorConjuntoObrigatorio);
-    setQtdConjuntosAtrasados(DEFAULTS.qtdConjuntosAtrasados);
-    setCardsPorConjuntoAtrasado(DEFAULTS.cardsPorConjuntoAtrasado);
-    setCardsErrosAnteriores(DEFAULTS.cardsErrosAnteriores);
-    setCardsImportantes(DEFAULTS.cardsImportantes);
-    setQtdConjuntosFixosPorCiclo(DEFAULTS.qtdConjuntosFixosPorCiclo);
-    setCardsPorConjuntoFixo(DEFAULTS.cardsPorConjuntoFixo);
+    config.resetToDefaults();
   };
 
   const salvarConfiguracoes = async () => {
     try {
       await saveCycleConfig({
-        limiteDiarioTotal,
-        limiteAtivo: limiteAtivo ? 1 : 0,
-        cardsPorConjuntoObrigatorio,
-        qtdConjuntosAtrasados,
-        cardsPorConjuntoAtrasado,
-        cardsErrosAnteriores,
-        cardsImportantes,
-        qtdConjuntosFixosPorCiclo,
-        cardsPorConjuntoFixo,
+        limiteDiarioTotal: config.limiteDiarioTotal,
+        limiteAtivo: config.limiteAtivo ? 1 : 0,
+        cardsPorConjuntoObrigatorio: config.cardsPorConjuntoObrigatorio,
+        qtdConjuntosAtrasados: config.qtdConjuntosAtrasados,
+        cardsPorConjuntoAtrasado: config.cardsPorConjuntoAtrasado,
+        cardsErrosAnteriores: config.cardsErrosAnteriores,
+        cardsImportantes: config.cardsImportantes,
+        qtdConjuntosFixosPorCiclo: config.qtdConjuntosFixosPorCiclo,
+        cardsPorConjuntoFixo: config.cardsPorConjuntoFixo,
+        conjuntosFixosSelecionados: config.conjuntosFixosSelecionados,
       });
+
       Alert.alert('Sucesso', 'Configurações salvas com sucesso!');
     } catch (error) {
       console.error(error);
@@ -88,7 +85,59 @@ const ConfiguracaoCicloScreen: React.FC = () => {
     }
   };
 
-  const Counter = ({ value, setter }: { value: number, setter: React.Dispatch<React.SetStateAction<number>> }) => (
+  // ── Monta o ciclo real consultando o banco ──
+  const handleSalvarConfiguracoes = async () => {
+    setLoading(true);
+    try {
+      // Salva as configs no banco primeiro
+      await saveCycleConfig({
+        limiteDiarioTotal: config.limiteDiarioTotal,
+        limiteAtivo: config.limiteAtivo ? 1 : 0,
+        cardsPorConjuntoObrigatorio: config.cardsPorConjuntoObrigatorio,
+        qtdConjuntosAtrasados: config.qtdConjuntosAtrasados,
+        cardsPorConjuntoAtrasado: config.cardsPorConjuntoAtrasado,
+        cardsErrosAnteriores: config.cardsErrosAnteriores,
+        cardsImportantes: config.cardsImportantes,
+        qtdConjuntosFixosPorCiclo: config.qtdConjuntosFixosPorCiclo,
+        cardsPorConjuntoFixo: config.cardsPorConjuntoFixo,
+        conjuntosFixosSelecionados: config.conjuntosFixosSelecionados,
+      });
+
+      // Monta o ciclo real
+      const ciclo = await buildCycleCards({
+        qtdConjuntosAtrasados: config.qtdConjuntosAtrasados,
+        cardsPorConjuntoAtrasado: config.cardsPorConjuntoAtrasado,
+        cardsPorConjuntoObrigatorio: config.cardsPorConjuntoObrigatorio,
+        cardsErrosAnteriores: config.cardsErrosAnteriores,
+        cardsImportantes: config.cardsImportantes,
+        qtdConjuntosFixosPorCiclo: config.qtdConjuntosFixosPorCiclo,
+        cardsPorConjuntoFixo: config.cardsPorConjuntoFixo,
+        conjuntosFixosSelecionados: config.conjuntosFixosSelecionados,
+        limiteAtivo: config.limiteAtivo,
+        limiteDiarioTotal: config.limiteDiarioTotal,
+      });
+
+      setCicloResumo(ciclo.resumo);
+      setCicloCardIds(ciclo.cards.map((c: any) => c.id));
+      setModalVisible(true);
+    } catch (error) {
+      console.error(error);
+      Alert.alert('Erro', 'Não foi possível montar o ciclo de estudo.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleEstudarAgora = () => {
+    setModalVisible(false);
+    if (cicloCardIds.length === 0) {
+      Alert.alert('Ciclo Vazio', 'Nenhum card foi selecionado para este ciclo.');
+      return;
+    }
+    navigation.navigate('Review' as never, { cycleCardIds: cicloCardIds } as never);
+  };
+
+  const Counter = ({ value, setter }: { value: number, setter: (val: number) => void }) => (
     <View style={styles.counterContainer}>
       <TouchableOpacity style={styles.counterBtn} onPress={() => setter(Math.max(0, value - 1))}>
         <Text style={styles.counterBtnText}>-</Text>
@@ -122,12 +171,12 @@ const ConfiguracaoCicloScreen: React.FC = () => {
             <TextInput
               style={styles.inputLarge}
               keyboardType="numeric"
-              value={limiteDiarioTotal.toString()}
-              onChangeText={(text) => setLimiteDiarioTotal(Number(text) || 0)}
+              value={config.limiteDiarioTotal.toString()}
+              onChangeText={(text) => config.updateConfig({ limiteDiarioTotal: Number(text) || 0 })}
             />
             <Switch 
-              value={limiteAtivo} 
-              onValueChange={setLimiteAtivo} 
+              value={config.limiteAtivo} 
+              onValueChange={(val) => config.updateConfig({ limiteAtivo: val })} 
               trackColor={{ false: '#E0E0E0', true: '#B0BEC5' }} 
               thumbColor={'#FFFFFF'}
             />
@@ -148,11 +197,17 @@ const ConfiguracaoCicloScreen: React.FC = () => {
           <View style={styles.twoColumnRow}>
             <View style={styles.column}>
               <Text style={styles.columnLabel}>Quantidade de Conjuntos</Text>
-              <Counter value={qtdConjuntosAtrasados} setter={setQtdConjuntosAtrasados} />
+              <Counter 
+                value={config.qtdConjuntosAtrasados} 
+                setter={(val) => config.updateConfig({ qtdConjuntosAtrasados: val })} 
+              />
             </View>
             <View style={styles.column}>
               <Text style={styles.columnLabel}>Cards por Conjunto</Text>
-              <Counter value={cardsPorConjuntoAtrasado} setter={setCardsPorConjuntoAtrasado} />
+              <Counter 
+                value={config.cardsPorConjuntoAtrasado} 
+                setter={(val) => config.updateConfig({ cardsPorConjuntoAtrasado: val })} 
+              />
             </View>
           </View>
         </View>
@@ -179,8 +234,8 @@ const ConfiguracaoCicloScreen: React.FC = () => {
             <TextInput
               style={styles.inputSmall}
               keyboardType="numeric"
-              value={cardsPorConjuntoObrigatorio.toString()}
-              onChangeText={(text) => setCardsPorConjuntoObrigatorio(Number(text) || 0)}
+              value={config.cardsPorConjuntoObrigatorio.toString()}
+              onChangeText={(text) => config.updateConfig({ cardsPorConjuntoObrigatorio: Number(text) || 0 })}
             />
           </View>
         </View>
@@ -195,8 +250,8 @@ const ConfiguracaoCicloScreen: React.FC = () => {
             <TextInput
               style={styles.inputSmall}
               keyboardType="numeric"
-              value={cardsErrosAnteriores.toString()}
-              onChangeText={(text) => setCardsErrosAnteriores(Number(text) || 0)}
+              value={config.cardsErrosAnteriores.toString()}
+              onChangeText={(text) => config.updateConfig({ cardsErrosAnteriores: Number(text) || 0 })}
             />
           </View>
         </View>
@@ -211,8 +266,8 @@ const ConfiguracaoCicloScreen: React.FC = () => {
             <TextInput
               style={styles.inputSmall}
               keyboardType="numeric"
-              value={cardsImportantes.toString()}
-              onChangeText={(text) => setCardsImportantes(Number(text) || 0)}
+              value={config.cardsImportantes.toString()}
+              onChangeText={(text) => config.updateConfig({ cardsImportantes: Number(text) || 0 })}
             />
           </View>
         </View>
@@ -229,22 +284,32 @@ const ConfiguracaoCicloScreen: React.FC = () => {
           <Text style={styles.subtext}>Sempre selecione os conjuntos fixos mais atrasados</Text>
           
           <View style={styles.cardRow}>
-            <TouchableOpacity style={styles.selectButton}>
+            <TouchableOpacity style={styles.selectButton} onPress={() => setSetsModalVisible(true)}>
               <Text style={styles.selectButtonText}>SELECIONAR CONJUNTOS</Text>
             </TouchableOpacity>
-            <TouchableOpacity>
-              <Text style={styles.linkText}>Ver Todos/Adicionar</Text>
+            <TouchableOpacity onPress={() => setSetsModalVisible(true)}>
+              <Text style={styles.linkText}>
+                {(config.conjuntosFixosSelecionados && config.conjuntosFixosSelecionados.length > 0) 
+                  ? `${config.conjuntosFixosSelecionados.length} Selecionados` 
+                  : 'Ver Todos/Adicionar'}
+              </Text>
             </TouchableOpacity>
           </View>
 
           <View style={[styles.cardRow, {marginTop: 16}]}>
             <Text style={styles.columnLabelLarge}>QUANTIDADE DE CONJUNTOS FIXOS POR CICLO</Text>
-            <Counter value={qtdConjuntosFixosPorCiclo} setter={setQtdConjuntosFixosPorCiclo} />
+            <Counter 
+              value={config.qtdConjuntosFixosPorCiclo} 
+              setter={(val) => config.updateConfig({ qtdConjuntosFixosPorCiclo: val })} 
+            />
           </View>
           
           <View style={[styles.cardRow, {marginTop: 16}]}>
             <Text style={styles.columnLabelLarge}>CARDS POR CONJUNTO FIXO</Text>
-            <Counter value={cardsPorConjuntoFixo} setter={setCardsPorConjuntoFixo} />
+            <Counter 
+              value={config.cardsPorConjuntoFixo} 
+              setter={(val) => config.updateConfig({ cardsPorConjuntoFixo: val })} 
+            />
           </View>
         </View>
 
@@ -252,13 +317,111 @@ const ConfiguracaoCicloScreen: React.FC = () => {
 
       {/* Footer */}
       <View style={styles.footer}>
-        <TouchableOpacity style={styles.saveButton} onPress={salvarConfiguracoes}>
-          <Text style={styles.saveButtonText}>SALVAR CONFIGURAÇÕES</Text>
+        <TouchableOpacity style={styles.saveButton} onPress={handleSalvarConfiguracoes} disabled={loading}>
+          {loading ? (
+            <ActivityIndicator color="#FFFFFF" />
+          ) : (
+            <Text style={styles.saveButtonText}>SALVAR CONFIGURAÇÕES</Text>
+          )}
         </TouchableOpacity>
         <TouchableOpacity style={styles.restoreButton} onPress={restaurarPadroes}>
           <Text style={styles.restoreButtonText}>Restaurar Padrões</Text>
         </TouchableOpacity>
       </View>
+
+      {/* Modal Flutuante de Resumo do Ciclo */}
+      <Modal visible={modalVisible} transparent animationType="fade" onRequestClose={() => setModalVisible(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalBox}>
+            <Text style={styles.modalTitle}>📊 Ciclo de Estudo Montado</Text>
+            
+            {cicloResumo && (
+              <View style={styles.modalContent}>
+                <View style={styles.modalRow}>
+                  <Text style={styles.modalIcon}>🕒</Text>
+                  <Text style={styles.modalLabel}>Conjuntos Atrasados</Text>
+                  <Text style={styles.modalValue}>{cicloResumo.atrasados} cards</Text>
+                </View>
+                <View style={styles.modalRow}>
+                  <Text style={styles.modalIcon}>🎯</Text>
+                  <Text style={styles.modalLabel}>Revisão Obrigatória</Text>
+                  <Text style={styles.modalValue}>{cicloResumo.obrigatorios} cards</Text>
+                </View>
+                <View style={styles.modalRow}>
+                  <Text style={styles.modalIcon}>❌</Text>
+                  <Text style={styles.modalLabel}>Erros Anteriores</Text>
+                  <Text style={styles.modalValue}>{cicloResumo.erros} cards</Text>
+                </View>
+                <View style={styles.modalRow}>
+                  <Text style={styles.modalIcon}>❤️</Text>
+                  <Text style={styles.modalLabel}>Cards Importantes</Text>
+                  <Text style={styles.modalValue}>{cicloResumo.importantes} cards</Text>
+                </View>
+                <View style={styles.modalRow}>
+                  <Text style={styles.modalIcon}>📚</Text>
+                  <Text style={styles.modalLabel}>Conjuntos Fixos</Text>
+                  <Text style={styles.modalValue}>{cicloResumo.fixos} cards</Text>
+                </View>
+
+                <View style={styles.modalDivider} />
+
+                <View style={styles.modalTotalRow}>
+                  <Text style={styles.modalTotalLabel}>📦 Total do Ciclo</Text>
+                  <Text style={styles.modalTotalValue}>{cicloResumo.total} cards</Text>
+                </View>
+
+                {config.limiteAtivo && (
+                  <Text style={styles.modalLimiteText}>
+                    🚫 Limite diário ativo: {config.limiteDiarioTotal} cards
+                  </Text>
+                )}
+              </View>
+            )}
+
+            <View style={styles.modalActions}>
+              <TouchableOpacity style={styles.modalStudyButton} onPress={handleEstudarAgora}>
+                <Text style={styles.modalStudyButtonText}>ESTUDAR AGORA</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.modalCloseButton} onPress={() => setModalVisible(false)}>
+                <Text style={styles.modalCloseButtonText}>Fechar</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Modal de Seleção de Conjuntos */}
+      <Modal visible={setsModalVisible} transparent animationType="slide" onRequestClose={() => setSetsModalVisible(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalBox, { maxHeight: '80%' }]}>
+            <Text style={styles.modalTitle}>Selecionar Conjuntos Fixos</Text>
+            <ScrollView style={{ width: '100%' }}>
+              {allSets.map(set => {
+                const isSelected = (config.conjuntosFixosSelecionados || []).includes(set.id);
+                return (
+                  <TouchableOpacity 
+                    key={set.id} 
+                    style={styles.setSelectRow}
+                    onPress={() => toggleSetSelection(set.id)}
+                  >
+                    <View style={[styles.checkbox, isSelected && styles.checkboxSelected]}>
+                      {isSelected && <Text style={styles.checkboxCheck}>✓</Text>}
+                    </View>
+                    <Text style={styles.setSelectTitle}>{set.title}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+              {allSets.length === 0 && (
+                <Text style={styles.noSetsText}>Nenhum conjunto encontrado.</Text>
+              )}
+            </ScrollView>
+            <TouchableOpacity style={[styles.modalCloseButton, { marginTop: 16 }]} onPress={() => setSetsModalVisible(false)}>
+              <Text style={styles.modalCloseButtonText}>Concluir</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
     </SafeAreaView>
   );
 };
@@ -469,6 +632,146 @@ const styles = StyleSheet.create({
     color: '#666',
     fontSize: 14,
     fontWeight: '600',
+  },
+  // ── Modal Styles ──
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  modalBox: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 24,
+    width: '100%',
+    maxWidth: 380,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#1A1A1A',
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  modalContent: {
+    marginBottom: 20,
+  },
+  modalRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F0F0',
+  },
+  modalIcon: {
+    fontSize: 16,
+    marginRight: 10,
+    width: 24,
+  },
+  modalLabel: {
+    flex: 1,
+    fontSize: 14,
+    color: '#333',
+    fontWeight: '500',
+  },
+  modalValue: {
+    fontSize: 14,
+    color: '#648CB4',
+    fontWeight: 'bold',
+  },
+  modalDivider: {
+    height: 2,
+    backgroundColor: '#648CB4',
+    marginVertical: 12,
+    borderRadius: 1,
+  },
+  modalTotalRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  modalTotalLabel: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#1A1A1A',
+  },
+  modalTotalValue: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#4CAF50',
+  },
+  modalLimiteText: {
+    fontSize: 12,
+    color: '#888',
+    textAlign: 'center',
+    marginTop: 8,
+  },
+  modalActions: {
+    gap: 10,
+  },
+  modalStudyButton: {
+    backgroundColor: '#4CAF50',
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  modalStudyButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  modalCloseButton: {
+    paddingVertical: 10,
+    alignItems: 'center',
+  },
+  modalCloseButtonText: {
+    color: '#888',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  setSelectRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F0F0',
+  },
+  checkbox: {
+    width: 24,
+    height: 24,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: '#D1D9E0',
+    marginRight: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  checkboxSelected: {
+    backgroundColor: '#4CAF50',
+    borderColor: '#4CAF50',
+  },
+  checkboxCheck: {
+    color: '#FFF',
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
+  setSelectTitle: {
+    fontSize: 16,
+    color: '#333',
+    flexShrink: 1,
+  },
+  noSetsText: {
+    textAlign: 'center',
+    color: '#888',
+    marginTop: 20,
+    fontSize: 14,
   },
 });
 

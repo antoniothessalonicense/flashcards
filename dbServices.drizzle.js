@@ -1,6 +1,6 @@
 import db from './db';
 import { sets, cards, cicloConfigs } from './db/schema';
-import { eq, sql } from 'drizzle-orm';
+import { eq, sql, inArray } from 'drizzle-orm';
 
 function genId() {
   return `${Date.now()}-${Math.floor(Math.random() * 100000)}`;
@@ -108,6 +108,7 @@ export async function saveCycleConfig(config) {
     cardsImportantes: config.cardsImportantes,
     qtdConjuntosFixosPorCiclo: config.qtdConjuntosFixosPorCiclo,
     cardsPorConjuntoFixo: config.cardsPorConjuntoFixo,
+    conjuntosFixosSelecionados: config.conjuntosFixosSelecionados ? JSON.stringify(config.conjuntosFixosSelecionados) : '[]',
   };
 
   if (existing) {
@@ -118,6 +119,164 @@ export async function saveCycleConfig(config) {
   const id = genId();
   await db.insert(cicloConfigs).values({ id, ...values });
   return id;
+}
+
+// ── Toggle de card importante (coração) ──
+export async function toggleCardImportant(cardId) {
+  const rows = await db.select({ isImportant: cards.isImportant }).from(cards).where(eq(cards.id, cardId));
+  const card = rows[0];
+  if (!card) return;
+  const newValue = card.isImportant === 1 ? 0 : 1;
+  await db.update(cards).set({ isImportant: newValue }).where(eq(cards.id, cardId));
+  return newValue;
+}
+
+// ── Monta o ciclo de estudo real com queries ao banco ──
+export async function buildCycleCards(config) {
+  const resultado = {
+    atrasados: [],
+    obrigatorios: [],
+    erros: [],
+    importantes: [],
+    fixos: [],
+  };
+
+  // 1. CONJUNTOS ATRASADOS
+  // Pega os N conjuntos com next_review_date mais antigo (mais atrasados)
+  const now = Date.now();
+  const setsAtrasados = await db.select()
+    .from(sets)
+    .where(sql`${sets.next_review_date} <= ${now}`)
+    .orderBy(sql`${sets.next_review_date} ASC`)
+    .limit(config.qtdConjuntosAtrasados);
+
+  for (const s of setsAtrasados) {
+    const cardsDoSet = await db.select()
+      .from(cards)
+      .where(eq(cards.set_id, s.id))
+      .orderBy(sql`${cards.next_review_date} ASC`)
+      .limit(config.cardsPorConjuntoAtrasado);
+    resultado.atrasados.push(...cardsDoSet);
+  }
+
+  // 2. REVISÃO OBRIGATÓRIA (Progressão Kumon)
+  // Conjuntos com menor % de memorização (good/easy sobre total)
+  const statsAll = await db.select({
+    setId: cards.set_id,
+    total: sql`count(${cards.id})`.mapWith(Number),
+    memorized: sql`sum(CASE WHEN ${cards.difficultyStatus} IN ('good', 'easy') THEN 1 ELSE 0 END)`.mapWith(Number),
+  }).from(cards).groupBy(cards.set_id);
+
+  const setsOrdenados = statsAll
+    .map(s => ({ ...s, pct: s.total > 0 ? (s.memorized || 0) / s.total : 0 }))
+    .sort((a, b) => a.pct - b.pct);
+
+  // IDs dos sets que já foram usados em "atrasados"
+  const idsAtrasadosSet = new Set(setsAtrasados.map(s => s.id));
+  const idsCardsJaSelecionados = new Set(resultado.atrasados.map(c => c.id));
+
+  let obrigatoriosRestantes = config.cardsPorConjuntoObrigatorio;
+  for (const s of setsOrdenados) {
+    if (obrigatoriosRestantes <= 0) break;
+    const cardsDoSet = await db.select()
+      .from(cards)
+      .where(eq(cards.set_id, s.setId))
+      .orderBy(sql`${cards.next_review_date} ASC`)
+      .limit(obrigatoriosRestantes);
+
+    const novos = cardsDoSet.filter(c => !idsCardsJaSelecionados.has(c.id));
+    resultado.obrigatorios.push(...novos);
+    novos.forEach(c => idsCardsJaSelecionados.add(c.id));
+    obrigatoriosRestantes -= novos.length;
+  }
+
+  // 3. ERROS ANTERIORES (difficultyStatus = 'hard')
+  const cardsErros = await db.select()
+    .from(cards)
+    .where(eq(cards.difficultyStatus, 'hard'))
+    .orderBy(sql`${cards.next_review_date} ASC`)
+    .limit(config.cardsErrosAnteriores + resultado.atrasados.length + resultado.obrigatorios.length);
+
+  const errosFiltrados = cardsErros
+    .filter(c => !idsCardsJaSelecionados.has(c.id))
+    .slice(0, config.cardsErrosAnteriores);
+  resultado.erros.push(...errosFiltrados);
+  errosFiltrados.forEach(c => idsCardsJaSelecionados.add(c.id));
+
+  // 4. CARDS IMPORTANTES (isImportant = 1)
+  const cardsImportantes = await db.select()
+    .from(cards)
+    .where(eq(cards.isImportant, 1))
+    .orderBy(sql`${cards.next_review_date} ASC`)
+    .limit(config.cardsImportantes + idsCardsJaSelecionados.size);
+
+  const importantesFiltrados = cardsImportantes
+    .filter(c => !idsCardsJaSelecionados.has(c.id))
+    .slice(0, config.cardsImportantes);
+  resultado.importantes.push(...importantesFiltrados);
+  importantesFiltrados.forEach(c => idsCardsJaSelecionados.add(c.id));
+
+  // 5. CONJUNTOS FIXOS (priorizando selecionados se existirem, senão os mais atrasados)
+  let setsFixosFiltrados = [];
+  
+  if (config.conjuntosFixosSelecionados && config.conjuntosFixosSelecionados.length > 0) {
+    const setsFixos = await db.select()
+      .from(sets)
+      .where(inArray(sets.id, config.conjuntosFixosSelecionados));
+    
+    setsFixosFiltrados = setsFixos
+      .filter(s => !idsAtrasadosSet.has(s.id))
+      .slice(0, config.qtdConjuntosFixosPorCiclo);
+  } else {
+    const setsFixos = await db.select()
+      .from(sets)
+      .orderBy(sql`${sets.next_review_date} ASC`)
+      .limit(config.qtdConjuntosFixosPorCiclo + setsAtrasados.length);
+
+    setsFixosFiltrados = setsFixos
+      .filter(s => !idsAtrasadosSet.has(s.id))
+      .slice(0, config.qtdConjuntosFixosPorCiclo);
+  }
+
+  for (const s of setsFixosFiltrados) {
+    const cardsDoSet = await db.select()
+      .from(cards)
+      .where(eq(cards.set_id, s.id))
+      .orderBy(sql`${cards.next_review_date} ASC`)
+      .limit(config.cardsPorConjuntoFixo + idsCardsJaSelecionados.size);
+
+    const novos = cardsDoSet
+      .filter(c => !idsCardsJaSelecionados.has(c.id))
+      .slice(0, config.cardsPorConjuntoFixo);
+    resultado.fixos.push(...novos);
+    novos.forEach(c => idsCardsJaSelecionados.add(c.id));
+  }
+
+  // Monta o array final (todos os cards sem duplicatas)
+  const todosCards = [
+    ...resultado.atrasados,
+    ...resultado.obrigatorios,
+    ...resultado.erros,
+    ...resultado.importantes,
+    ...resultado.fixos,
+  ];
+
+  // Aplica limite diário se ativo
+  const totalFinal = config.limiteAtivo && config.limiteDiarioTotal > 0
+    ? todosCards.slice(0, config.limiteDiarioTotal)
+    : todosCards;
+
+  return {
+    cards: totalFinal,
+    resumo: {
+      atrasados: resultado.atrasados.length,
+      obrigatorios: resultado.obrigatorios.length,
+      erros: resultado.erros.length,
+      importantes: resultado.importantes.length,
+      fixos: resultado.fixos.length,
+      total: totalFinal.length,
+    },
+  };
 }
 
 export async function seedInitialData() {

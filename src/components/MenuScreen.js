@@ -9,6 +9,7 @@ export const MENU_ITEMS = [
   { icon: '📊', label: 'Estatísticas', id: 'statistics' },
   { icon: '🔔', label: 'Notificações', id: 'notifications' },
   { icon: '📥', label: 'Importar', id: 'import' },
+  { icon: '🗣️', label: 'Configurar Vozes', id: 'voices' },
   { icon: '☁️', label: 'Backup no Google Docs', id: 'backup_docs' },
   null,
   { icon: '⚙️', label: 'Configurações', id: 'settings' },
