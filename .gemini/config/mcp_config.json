@@ -6,14 +6,6 @@
         "Authorization": "Bearer rQ-h-cjE6qm8GmsVF61d2gJG-uq_LkZXonqCTVg0"
       }
     },
-    "filesystem": {
-      "command": "npx",
-      "args": [
-        "-y",
-        "@modelcontextprotocol/server-filesystem",
-        "."
-      ]
-    },
     "context7": {
       "command": "npx",
       "args": [

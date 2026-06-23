@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useContext } from 'react';
-import { View, Text, TouchableOpacity, FlatList, Modal, ScrollView, TextInput, Share, Alert, Switch } from 'react-native';
+import { View, Text, TouchableOpacity, FlatList, Modal, ScrollView, TextInput, Share, Alert, Switch, StyleSheet, Pressable } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
 import * as Clipboard from 'expo-clipboard';
 import { z } from 'zod';
 import * as Speech from 'expo-speech';
@@ -49,48 +51,68 @@ const flashcardSchema = z.array(
   })
 );
 
+const COLORS = ['#4CAF50', '#2196F3', '#FF9800', '#E91E63', '#9C27B0', '#00BCD4'];
+const getDeckColor = (id) => {
+  const hash = id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+  return COLORS[hash % COLORS.length];
+};
+
 const DeckItem = ({ deck, stats, isTarget, setMenuAtivo }) => {
-  const { theme, styles } = useContext(AppContext);
+  const { theme } = useContext(AppContext);
   const navigation = useNavigation();
-  
+
   const totalCards = stats?.total || 0;
-  const memorized = stats?.memorized || 0;
-  const progress = totalCards > 0 ? (memorized / totalCards) * 100 : 0;
+  const progress = totalCards > 0 ? (stats.memorized / totalCards) * 100 : 0;
+  const color = getDeckColor(deck.id);
 
   return (
-    <TouchableOpacity style={[styles.deckItem, isTarget && { borderColor: '#F44336', borderWidth: 2 }]} onPress={() => navigation.navigate('DeckDetails', { deckId: deck.id })} activeOpacity={0.8}>
-      <View style={styles.deckItemHeader}>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.deckName}>{deck.title}</Text>
-          <Text style={styles.deckSub}>{memorized} / {totalCards} Cartões memorizados • {deck.totalReviews || 0} Treinos</Text>
+    <Pressable
+      style={[localStyles.card, { backgroundColor: theme.card, borderLeftColor: color }, isTarget && { borderColor: '#F44336', borderWidth: 2 }]}
+      onPress={() => navigation.navigate('DeckDetails', { deckId: deck.id })}
+    >
+      <View style={localStyles.cardContent}>
+        <View style={localStyles.cardHeader}>
+          <Text style={[localStyles.cardTitle, { color: theme.white }]}>{deck.title}</Text>
+          <Text style={localStyles.cardSubtitle}>{totalCards} cartões</Text>
         </View>
-        <TouchableOpacity style={styles.deckMenuBtn} onPress={() => setMenuAtivo(deck.id)}>
-          <Text style={styles.deckMenuIcon}>⋮</Text>
+
+        <View style={localStyles.progressContainer}>
+          <View style={localStyles.progressBarBackground}>
+            <View
+              style={[
+                localStyles.progressBarFill,
+                { width: `${progress}%`, backgroundColor: color }
+              ]}
+            />
+          </View>
+        </View>
+      </View>
+
+      <View style={localStyles.cardRight}>
+        <View style={[localStyles.progressCircle, { borderColor: color }]}>
+          <Text style={[localStyles.progressCircleText, { color: theme.white }]}>{Math.round(progress)}%</Text>
+        </View>
+        <TouchableOpacity onPress={() => setMenuAtivo(deck.id)} style={{ padding: 8 }}>
+          <Ionicons name="ellipsis-vertical" size={24} color={theme.gray || '#ccc'} />
         </TouchableOpacity>
       </View>
-      <ProgressBar value={progress} theme={theme} color={theme.purple} />
-      <View style={styles.deckActions}>
-        <TouchableOpacity onPress={() => navigation.navigate('Review', { deckId: deck.id, studyMode: 'review' })}>
-          <Text style={styles.deckActionBtn}>REVISÃO</Text>
-        </TouchableOpacity>
-        <TouchableOpacity onPress={() => navigation.navigate('Practice', { deckId: deck.id })}>
-          <Text style={styles.deckActionBtn}>PRÁTICA</Text>
-        </TouchableOpacity>
-      </View>
-    </TouchableOpacity>
+    </Pressable>
   );
 };
 
 function DeckListScreen({ decks = [], totalCardsCount = 0, deckStats = [] }) {
-  const { theme, styles, cardsReviewedToday, dailyGoal, targetReviewDecks, isDark, setIsDark, preferredVoices, handleSetPreferredVoice, autoPlayAudio, handleSetAutoPlayAudio } = useContext(AppContext);
+  const { theme, styles, cardsReviewedToday, dailyGoal, targetReviewDecks, isDark, setIsDark, preferredVoices, handleSetPreferredVoice, autoPlayAudio, handleSetAutoPlayAudio, cardFontSize, updateSettings, showStopwatch, setShowStopwatch } = useContext(AppContext);
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
-  
+
   const [menuAtivo, setMenuAtivo] = useState(null);
   const [menuVisible, setMenuVisible] = useState(false);
+  const [textSizeModalVisible, setTextSizeModalVisible] = useState(false);
+  const [tempTextSize, setTempTextSize] = useState(24);
   const [isSearching, setIsSearching] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
   const [cardSearchQuery, setCardSearchQuery] = useState('');
+  const [helpModalVisible, setHelpModalVisible] = useState(false);
+  const [stopwatchModalVisible, setStopwatchModalVisible] = useState(false);
 
   const [actionDeckId, setActionDeckId] = useState(null);
   const [editModal, setEditModal] = useState(false);
@@ -98,23 +120,62 @@ function DeckListScreen({ decks = [], totalCardsCount = 0, deckStats = [] }) {
   const [editDesc, setEditDesc] = useState('');
   const [editFrontLang, setEditFrontLang] = useState('');
   const [editBackLang, setEditBackLang] = useState('');
-  
+
   const [cardModal, setCardModal] = useState(false);
   const [cardFront, setCardFront] = useState('');
   const [cardBack, setCardBack] = useState('');
-  
+  const [cardTag, setCardTag] = useState('');
+
   const [deckModal, setDeckModal] = useState(false);
-  
+
   const [dailyGoalMenuVisible, setDailyGoalMenuVisible] = useState(false);
   const [langPickerVisible, setLangPickerVisible] = useState(false);
   const [langPickerTarget, setLangPickerTarget] = useState('');
   const [importModalVisible, setImportModalVisible] = useState(false);
   const [importText, setImportText] = useState('');
+  const [exportModalVisible, setExportModalVisible] = useState(false);
+  const [exportFileName, setExportFileName] = useState('');
+  const [exportActionDeckId, setExportActionDeckId] = useState(null);
 
   const [voicesConfigModalVisible, setVoicesConfigModalVisible] = useState(false);
   const [voiceSelectionModalVisible, setVoiceSelectionModalVisible] = useState(false);
   const [selectedLang, setSelectedLang] = useState('pt-BR');
   const [availableVoices, setAvailableVoices] = useState([]);
+  const [duplicateModalVisible, setDuplicateModalVisible] = useState(false);
+  const [duplicateGroups, setDuplicateGroups] = useState([]);
+
+  const handleDeleteDuplicate = async (cardId) => {
+    Alert.alert(
+      'Excluir Duplicata',
+      'Tem certeza que deseja excluir este cartão duplicado?',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        { 
+          text: 'Excluir', 
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await db.delete(cards).where(eq(cards.id, cardId));
+              setDuplicateGroups(prevGroups => {
+                const newGroups = prevGroups.map(group => ({
+                  ...group,
+                  cards: group.cards.filter(c => c.id !== cardId)
+                })).filter(group => group.cards.length > 1);
+                
+                if (newGroups.length === 0) {
+                  setDuplicateModalVisible(false);
+                }
+                return newGroups;
+              });
+            } catch (err) {
+              console.error('Erro ao excluir duplicata:', err);
+              Alert.alert('Erro', 'Não foi possível excluir o cartão.');
+            }
+          }
+        }
+      ]
+    );
+  };
 
   useEffect(() => {
     Speech.getAvailableVoicesAsync().then(setAvailableVoices);
@@ -137,6 +198,45 @@ function DeckListScreen({ decks = [], totalCardsCount = 0, deckStats = [] }) {
     else if (langPickerTarget === 'editBack') setEditBackLang(code);
     else if (langPickerTarget === 'voiceConfig') setSelectedLang(code);
     setLangPickerVisible(false);
+  };
+
+  const normalizeText = (text = '') => {
+    return String(text)
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .toLowerCase();
+  };
+
+  const handleFindDuplicateCards = async () => {
+    try {
+      const allCards = await db.select({ id: cards.id, set_id: cards.set_id, front: cards.front, back: cards.back }).from(cards).all();
+      const deckTitleMap = new Map(decks.map((deck) => [deck.id, deck.title]));
+      const groupsMap = new Map();
+
+      allCards.forEach((card) => {
+        const key = normalizeText(card.front);
+        if (!key) return;
+        const entry = { ...card, deckTitle: deckTitleMap.get(card.set_id) || 'Sem conjunto' };
+        const existing = groupsMap.get(key) || [];
+        existing.push(entry);
+        groupsMap.set(key, existing);
+      });
+
+      const groups = [];
+      for (const [front, cardsList] of groupsMap.entries()) {
+        if (cardsList.length > 1) {
+          groups.push({ front, cards: cardsList });
+        }
+      }
+
+      setDuplicateGroups(groups);
+      setDuplicateModalVisible(true);
+    } catch (error) {
+      console.error('Erro ao verificar duplicatas:', error);
+      Alert.alert('Erro', 'Não foi possível verificar duplicatas.');
+    }
   };
 
   const renderLangDisplay = (code) => {
@@ -206,29 +306,34 @@ function DeckListScreen({ decks = [], totalCardsCount = 0, deckStats = [] }) {
           if (currentCard && currentCard.frente && currentCard.verso) {
             parsedCards.push(currentCard);
           }
-          currentCard = { frente: '', verso: '' };
+          currentCard = { frente: '', verso: '', tag: '' };
           currentField = null;
         } else if (safeMatchLine.startsWith('FRENTE:')) {
           if (!currentCard || currentCard.frente) {
-             if (currentCard && currentCard.frente && currentCard.verso) {
-               parsedCards.push(currentCard);
-             }
-             currentCard = { frente: '', verso: '' };
+            if (currentCard && currentCard.frente && currentCard.verso) {
+              parsedCards.push(currentCard);
+            }
+            currentCard = { frente: '', verso: '', tag: '' };
           }
           const contentMatch = line.match(/^FRENTE:\s*(.*)$/i);
           currentCard.frente = contentMatch ? contentMatch[1].trim() : line.substring(7).trim();
           currentField = 'frente';
         } else if (safeMatchLine.startsWith('VERSO:')) {
-          if (!currentCard) currentCard = { frente: '', verso: '' };
+          if (!currentCard) currentCard = { frente: '', verso: '', tag: '' };
           const contentMatch = line.match(/^VERSO:\s*(.*)$/i);
           currentCard.verso = contentMatch ? contentMatch[1].trim() : line.substring(6).trim();
           currentField = 'verso';
+        } else if (safeMatchLine.startsWith('TAG:')) {
+          if (!currentCard) currentCard = { frente: '', verso: '', tag: '' };
+          const contentMatch = line.match(/^TAG:\s*(.*)$/i);
+          currentCard.tag = contentMatch ? contentMatch[1].trim() : line.substring(4).trim();
+          currentField = 'tag';
         } else if (currentCard && currentField) {
           // Concatena quebra de linha literal
           currentCard[currentField] += '\n' + line;
         }
       }
-      
+
       if (currentCard && currentCard.frente && currentCard.verso) {
         parsedCards.push(currentCard);
       }
@@ -238,7 +343,7 @@ function DeckListScreen({ decks = [], totalCardsCount = 0, deckStats = [] }) {
 
       if (parsedCards.length === 0) {
         Alert.alert(
-          'Erro de Formatação', 
+          'Erro de Formatação',
           'Nenhum cartão válido foi encontrado.\n\nCausa: O texto não segue o padrão exigido.\n\nExemplo esperado:\n#CARTÃO\nFRENTE: sua pergunta\nVERSO: sua resposta'
         );
         return;
@@ -261,7 +366,8 @@ function DeckListScreen({ decks = [], totalCardsCount = 0, deckStats = [] }) {
           back: c.verso.trim(),
           next_review_date: Date.now(),
           ease_factor: 250,
-          difficultyStatus: 'new'
+          difficultyStatus: 'new',
+          tag: c.tag ? c.tag.trim() : null
         }).returning();
       }
 
@@ -269,7 +375,7 @@ function DeckListScreen({ decks = [], totalCardsCount = 0, deckStats = [] }) {
     } catch (error) {
       console.error('Erro ao processar flashcards:', error);
       Alert.alert(
-        'Erro na Importação', 
+        'Erro na Importação',
         `Não foi possível concluir a importação.\n\nTipo: ${error.name || 'Erro Desconhecido'}\nCausa: ${error.message || 'Falha no processamento do texto ou banco de dados.'}`
       );
     }
@@ -279,7 +385,7 @@ function DeckListScreen({ decks = [], totalCardsCount = 0, deckStats = [] }) {
     try {
       console.log('=== INICIANDO IMPORTAÇÃO DE JSON DA ÁREA DE TRANSFERÊNCIA ===');
       const clipboardContent = await Clipboard.getStringAsync();
-      
+
       if (!clipboardContent || !clipboardContent.trim()) {
         Alert.alert('Área de Transferência Vazia', 'Não há nenhum conteúdo copiado na sua área de transferência para importar.');
         return;
@@ -348,7 +454,7 @@ function DeckListScreen({ decks = [], totalCardsCount = 0, deckStats = [] }) {
 
       const newDeckId = genId();
       const title = `Importado via JSON (${new Date().toLocaleDateString('pt-BR')} ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })})`;
-      
+
       await db.insert(sets).values({
         id: newDeckId,
         title: title,
@@ -469,6 +575,7 @@ function DeckListScreen({ decks = [], totalCardsCount = 0, deckStats = [] }) {
             set_id: newDeckId,
             front: cardData.frente.trim(),
             back: cardData.verso.trim(),
+            tag: cardData.tag ? cardData.tag.trim() : null,
             next_review_date: Date.now(),
             ease_factor: 250,
             difficultyStatus: 'new',
@@ -504,6 +611,7 @@ function DeckListScreen({ decks = [], totalCardsCount = 0, deckStats = [] }) {
       setActionDeckId(deckId);
       setCardFront('');
       setCardBack('');
+      setCardTag('');
       setCardModal(true);
     } else if (action === 'share' || action === 'export') {
       const deckCards = await db.select().from(cards).where(eq(cards.set_id, deckId)).all();
@@ -512,11 +620,9 @@ function DeckListScreen({ decks = [], totalCardsCount = 0, deckStats = [] }) {
         return;
       }
       if (action === 'export') {
-        let textToExport = `#CONJUNTO: ${deck.title}\n`;
-        if (deck.description) textToExport += `#DESCRIÇÃO: ${deck.description}\n`;
-        textToExport += '\n';
-        deckCards.forEach(c => { textToExport += `#CARTÃO\nFRENTE: ${c.front}\nVERSO: ${c.back}\n\n`; });
-        await Share.share({ message: textToExport.trim() });
+        setExportActionDeckId(deckId);
+        setExportFileName(deck.title.replace(/[^a-zA-Z0-9_-]/g, '_'));
+        setExportModalVisible(true);
       } else {
         const textToShare = deckCards.map(c => `P: ${c.front}\nR: ${c.back}`).join('\n\n');
         await Share.share({ message: `Confira meu conjunto de estudos "${deck.title}":\n\n${textToShare}` });
@@ -527,46 +633,83 @@ function DeckListScreen({ decks = [], totalCardsCount = 0, deckStats = [] }) {
   };
 
   const handleExportAllMD = async () => {
+    setDailyGoalMenuVisible(false);
+    setExportActionDeckId(null);
+    setExportFileName('todos_conjuntos');
+    setExportModalVisible(true);
+  };
+
+  const executeFileExport = async () => {
+    if (!exportFileName.trim()) {
+      Alert.alert('Nome inválido', 'Por favor, insira um nome para o arquivo.');
+      return;
+    }
+    
     try {
-      setDailyGoalMenuVisible(false);
-      let mdContent = '';
-      for (const deck of decks) {
+      const isAll = exportActionDeckId === null;
+      const decksToExport = isAll ? decks : decks.filter(d => d.id === exportActionDeckId);
+      
+      let textToExport = '';
+      for (const deck of decksToExport) {
         const deckCards = await db.select().from(cards).where(eq(cards.set_id, deck.id)).all();
-        mdContent += `#CONJUNTO: ${deck.title}\n`;
-        if (deck.description) mdContent += `#DESCRIÇÃO: ${deck.description}\n`;
-        mdContent += '\n';
-        deckCards.forEach(c => { mdContent += `#CARTÃO\nFRENTE: ${c.front}\nVERSO: ${c.back}\n\n`; });
+        textToExport += `#CONJUNTO: ${deck.title}\n`;
+        if (deck.description) textToExport += `#DESCRIÇÃO: ${deck.description}\n`;
+        textToExport += '\n';
+        deckCards.forEach(c => { 
+          textToExport += `#CARTÃO\nFRENTE: ${c.front}\nVERSO: ${c.back}\n`; 
+          if (c.tag) textToExport += `TAG: ${c.tag}\n`;
+          textToExport += '\n';
+        });
       }
-      await Share.share({ message: mdContent.trim() });
-    } catch (error) { 
-      Alert.alert("Erro", "Não foi possível exportar os conjuntos.");
+      
+      const safeName = exportFileName.trim().endsWith('.txt') ? exportFileName.trim() : `${exportFileName.trim()}.txt`;
+      const fileUri = `${FileSystem.cacheDirectory}${safeName}`;
+      
+      await FileSystem.writeAsStringAsync(fileUri, textToExport.trim(), { encoding: FileSystem.EncodingType.UTF8 });
+      
+      const isSharingAvailable = await Sharing.isAvailableAsync();
+      if (isSharingAvailable) {
+        await Sharing.shareAsync(fileUri, {
+          mimeType: 'text/plain',
+          dialogTitle: 'Salvar Arquivo de Flashcards',
+          UTI: 'public.plain-text'
+        });
+      } else {
+        Alert.alert('Erro', 'O compartilhamento não está disponível neste dispositivo.');
+      }
+      
+      setExportModalVisible(false);
+    } catch (error) {
+      console.error('Erro ao exportar arquivo:', error);
+      Alert.alert('Erro', 'Ocorreu um erro ao gerar o arquivo de exportação.');
     }
   };
 
-  const onUpdateDeck = async (id, t, d, fL, bL) => { 
-    try { 
-      await db.update(sets).set({ title: t, description: d, frontLanguage: fL, backLanguage: bL }).where(eq(sets.id, id)).returning(); 
-    } catch(e) { console.error(e); } 
+  const onUpdateDeck = async (id, t, d, fL, bL) => {
+    try {
+      await db.update(sets).set({ title: t, description: d, frontLanguage: fL, backLanguage: bL }).where(eq(sets.id, id)).returning();
+    } catch (e) { console.error(e); }
   };
-  const onDeleteDeck = async (id) => { 
-    try { 
+  const onDeleteDeck = async (id) => {
+    try {
       await db.delete(cards).where(eq(cards.set_id, id)).returning();
-      await db.delete(sets).where(eq(sets.id, id)).returning(); 
-    } catch(e) { console.error(e); } 
+      await db.delete(sets).where(eq(sets.id, id)).returning();
+    } catch (e) { console.error(e); }
   };
-  const onAddCard = async (id, f, b) => { 
-    try { 
+  const onAddCard = async (id, f, b, t) => {
+    try {
       const newCardId = genId();
       await db.insert(cards).values({
         id: newCardId,
         set_id: id,
         front: f,
         back: b,
+        tag: t ? t.trim() : null,
         next_review_date: Date.now(),
         ease_factor: 250,
         difficultyStatus: 'new'
       }).returning();
-    } catch(e) { console.error(e); } 
+    } catch (e) { console.error(e); }
   };
 
   const handleReviewAll = () => navigation.navigate('Review', { reviewAll: true, studyMode: 'review' });
@@ -597,7 +740,11 @@ function DeckListScreen({ decks = [], totalCardsCount = 0, deckStats = [] }) {
     }
   };
 
-  const filteredDecks = decks.filter(deck => (deck.title || '').toLowerCase().includes(searchQuery.toLowerCase()));
+  const filteredDecks = decks.filter(deck => {
+    const query = cardSearchQuery.trim().toLowerCase();
+    if (query.length === 0) return true;
+    return (deck.title || '').toLowerCase().includes(query);
+  });
 
   return (
     <View style={[styles.screen, { paddingTop: insets.top }]}>
@@ -608,7 +755,7 @@ function DeckListScreen({ decks = [], totalCardsCount = 0, deckStats = [] }) {
         <View style={{ flex: 1 }}>
           <TextInput
             style={{ color: theme.white, backgroundColor: theme.card, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, marginHorizontal: 8 }}
-            placeholder="Pesquisar cartões..."
+            placeholder="Pesquisar conjuntos e cartões..."
             placeholderTextColor={theme.gray}
             value={cardSearchQuery}
             onChangeText={setCardSearchQuery}
@@ -622,36 +769,51 @@ function DeckListScreen({ decks = [], totalCardsCount = 0, deckStats = [] }) {
         </TouchableOpacity>
       </View>
 
+
+
       {cardSearchResults.length > 0 && (
         <View style={{ backgroundColor: theme.card, marginHorizontal: 16, borderRadius: 8, padding: 8, marginBottom: 12, maxHeight: 150 }}>
           <Text style={{ color: theme.gray, fontSize: 12, marginBottom: 8 }}>Resultados encontrados ({cardSearchResults.length}):</Text>
           <FlatList
             data={cardSearchResults}
             keyExtractor={item => String(item.id)}
-            renderItem={({ item }) => (
-              <View style={{ paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: theme.sep }}>
-                <Text style={{ color: theme.white, fontWeight: 'bold' }}>{item.front}</Text>
-                <Text style={{ color: theme.gray }}>{item.back}</Text>
-              </View>
-            )}
+            renderItem={({ item }) => {
+              const parentDeck = decks.find(d => d.id === item.set_id);
+              return (
+                <TouchableOpacity
+                  style={{ paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: theme.sep }}
+                  onPress={() => {
+                    setCardSearchQuery('');
+                    navigation.navigate('DeckDetails', { deckId: item.set_id });
+                  }}
+                >
+                  <Text style={{ color: theme.white, fontWeight: 'bold' }}>{item.front}</Text>
+                  <Text style={{ color: theme.gray }}>{item.back}</Text>
+                  {parentDeck && <Text style={{ color: theme.purple || '#BB86FC', fontSize: 11, marginTop: 2 }}>📁 {parentDeck.title}</Text>}
+                </TouchableOpacity>
+              );
+            }}
           />
         </View>
       )}
 
-      <TouchableOpacity style={styles.pill} onPress={() => {/* onOpenWorkspace */}} activeOpacity={0.7}>
+      <TouchableOpacity style={styles.pill} onPress={() => {/* onOpenWorkspace */ }} activeOpacity={0.7}>
         <Text style={styles.pillText}>{'Todos os conjuntos'}</Text>
         <View style={styles.pillIconWrapper}><Text style={styles.pillUpload}>▼</Text></View>
       </TouchableOpacity>
 
       <View style={styles.actionRow}>
         <TouchableOpacity onPress={handleReviewAll}>
-          <Text style={styles.actionBtn}>REVISAR TUDO</Text>
+          <Text style={styles.actionBtn}>REVISÃO</Text>
         </TouchableOpacity>
         <TouchableOpacity onPress={handlePracticeAll}>
-          <Text style={styles.actionBtn}>PRATIQUE TUDO</Text>
+          <Text style={styles.actionBtn}>PRATICA</Text>
         </TouchableOpacity>
         <TouchableOpacity onPress={handleCycleStudy}>
           <Text style={[styles.actionBtn, { color: '#4DA8DA' }]}>📚 CICLO</Text>
+        </TouchableOpacity>
+        <TouchableOpacity onPress={handleFindDuplicateCards}>
+          <Text style={[styles.actionBtn, { color: '#FF9800' }]}>DUPLICATAS</Text>
         </TouchableOpacity>
       </View>
 
@@ -749,12 +911,13 @@ function DeckListScreen({ decks = [], totalCardsCount = 0, deckStats = [] }) {
             <Text style={styles.wsModalTitle}>Adicionar Cartão</Text>
             <TextInput style={styles.wsInput} placeholder="Frente (Pergunta)" placeholderTextColor="#666" value={cardFront} onChangeText={setCardFront} />
             <TextInput style={[styles.wsInput, { marginTop: 10 }]} placeholder="Verso (Resposta)" placeholderTextColor="#666" value={cardBack} onChangeText={setCardBack} />
+            <TextInput style={[styles.wsInput, { marginTop: 10 }]} placeholder="Tag (Opcional)" placeholderTextColor="#666" value={cardTag} onChangeText={setCardTag} />
             <View style={styles.wsModalActions}>
               <TouchableOpacity onPress={() => setCardModal(false)}><Text style={styles.wsModalCancel}>Cancelar</Text></TouchableOpacity>
-              <TouchableOpacity onPress={() => { if (cardFront.trim() && cardBack.trim()) { onAddCard(actionDeckId, cardFront, cardBack); setCardFront(''); setCardBack(''); }}}>
+              <TouchableOpacity onPress={() => { if (cardFront.trim() && cardBack.trim()) { onAddCard(actionDeckId, cardFront, cardBack, cardTag); setCardFront(''); setCardBack(''); setCardTag(''); } }}>
                 <View style={styles.wsModalConfirm}><Text style={styles.wsModalConfirmText}>Adicionar +</Text></View>
               </TouchableOpacity>
-              <TouchableOpacity onPress={() => { if (cardFront.trim() && cardBack.trim()) { onAddCard(actionDeckId, cardFront, cardBack); } setCardModal(false); }}>
+              <TouchableOpacity onPress={() => { if (cardFront.trim() && cardBack.trim()) { onAddCard(actionDeckId, cardFront, cardBack, cardTag); } setCardModal(false); }}>
                 <View style={[styles.wsModalConfirm, { backgroundColor: '#4CAF50' }]}><Text style={styles.wsModalConfirmText}>Concluir</Text></View>
               </TouchableOpacity>
             </View>
@@ -787,6 +950,41 @@ function DeckListScreen({ decks = [], totalCardsCount = 0, deckStats = [] }) {
           </View>
         </TouchableOpacity>
       </Modal>
+      <Modal visible={duplicateModalVisible} transparent animationType="fade" onRequestClose={() => setDuplicateModalVisible(false)}>
+        <TouchableOpacity style={styles.contextOverlay} activeOpacity={1} onPress={() => setDuplicateModalVisible(false)}>
+          <View style={[styles.contextMenu, { width: '90%', maxHeight: '80%', padding: 16 }]}>
+            <Text style={[styles.contextMenuText, { fontSize: 18, fontWeight: 'bold', marginBottom: 12 }]}>Duplicatas de Cartões</Text>
+            {duplicateGroups.length === 0 ? (
+              <Text style={{ color: theme.white, marginBottom: 16 }}>Nenhuma duplicata encontrada.</Text>
+            ) : (
+              <ScrollView style={{ marginBottom: 16 }}>
+                {duplicateGroups.map((group, index) => (
+                  <View key={`${group.front}-${index}`} style={{ marginBottom: 14, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: theme.sep }}>
+                    <Text style={{ color: theme.white, fontWeight: 'bold', marginBottom: 6 }}>{group.front}</Text>
+                    {group.cards.map((card) => (
+                      <View key={card.id} style={{ marginBottom: 6, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <View style={{ flex: 1, paddingRight: 12 }}>
+                          <Text style={{ color: theme.white }}>{card.deckTitle}</Text>
+                          <Text style={{ color: theme.gray, fontSize: 13 }}>{card.back}</Text>
+                        </View>
+                        <TouchableOpacity onPress={() => handleDeleteDuplicate(card.id)} style={{ padding: 8 }}>
+                          <Text style={{ color: '#FF6B6B', fontSize: 18 }}>🗑️</Text>
+                        </TouchableOpacity>
+                      </View>
+                    ))}
+                  </View>
+                ))}
+              </ScrollView>
+            )}
+            <TouchableOpacity onPress={() => setDuplicateModalVisible(false)}>
+              <View style={[styles.wsModalConfirm, { backgroundColor: theme.purple, marginTop: 8 }]}>
+                <Text style={styles.wsModalConfirmText}>Fechar</Text>
+              </View>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
       <Modal visible={importModalVisible} transparent animationType="fade" onRequestClose={() => setImportModalVisible(false)}>
         <View style={styles.wsModalOverlay}>
           <View style={styles.wsModalBox}>
@@ -794,6 +992,21 @@ function DeckListScreen({ decks = [], totalCardsCount = 0, deckStats = [] }) {
             <Text style={{ color: theme.gray, fontSize: 12, marginBottom: 16 }}>
               ⚠️ O campo de texto tem limite de ~3600 caracteres. Para importar 175+ cartões, use um arquivo.
             </Text>
+
+            <View style={{ backgroundColor: theme.card, padding: 12, borderRadius: 8, marginBottom: 16 }}>
+              <Text style={{ color: theme.white, fontSize: 13, fontWeight: 'bold', marginBottom: 4 }}>Formatação Aceita:</Text>
+              <Text style={{ color: theme.gray, fontSize: 12, fontFamily: 'monospace' }}>
+                #CONJUNTO: Nome do Conjunto{'\n'}
+                #DESCRIÇÃO: (Opcional){'\n\n'}
+                #CARTÃO{'\n'}
+                FRENTE: Pergunta 1{'\n'}
+                VERSO: Resposta 1{'\n'}
+                TAG: (Opcional){'\n\n'}
+                #CARTÃO{'\n'}
+                FRENTE: Pergunta 2{'\n'}
+                VERSO: Resposta 2
+              </Text>
+            </View>
 
             <Text style={{ color: theme.white, fontSize: 14, fontWeight: 'bold', marginBottom: 8 }}>Opção 1: Arquivo (.txt / .md)</Text>
             <TouchableOpacity onPress={handleFileImport} style={{ marginBottom: 16 }}>
@@ -810,23 +1023,23 @@ function DeckListScreen({ decks = [], totalCardsCount = 0, deckStats = [] }) {
             </TouchableOpacity>
 
             <TouchableOpacity
-                onPress={() => {
-                  if (tempImportText) {
-                    setImportText(tempImportText);
-                  } else {
-                    Alert.alert('Aviso', 'O texto de teste está vazio.');
-                  }
-                }}
-                style={{ marginBottom: 12 }}
-              >
-                <View style={[styles.wsModalConfirm, { width: '100%', backgroundColor: '#4CAF50' }]}>
-                  <Text style={styles.wsModalConfirmText}>🧪 Preencher Texto de Teste (TXT)</Text>
-                </View>
-              </TouchableOpacity>
+              onPress={() => {
+                if (tempImportText) {
+                  setImportText(tempImportText);
+                } else {
+                  Alert.alert('Aviso', 'O texto de teste está vazio.');
+                }
+              }}
+              style={{ marginBottom: 12 }}
+            >
+              <View style={[styles.wsModalConfirm, { width: '100%', backgroundColor: '#4CAF50' }]}>
+                <Text style={styles.wsModalConfirmText}>🧪 Preencher Texto de Teste (TXT)</Text>
+              </View>
+            </TouchableOpacity>
 
             <Text style={{ color: theme.white, fontSize: 14, fontWeight: 'bold', marginBottom: 8 }}>Opção 3: Colar Texto (limitado)</Text>
             <TextInput
-              style={[ styles.wsInput, { height: 120, textAlignVertical: 'top' }]}
+              style={[styles.wsInput, { height: 120, textAlignVertical: 'top' }]}
               placeholder="Cole pequenos conjuntos aqui..."
               placeholderTextColor="#666"
               multiline
@@ -835,7 +1048,7 @@ function DeckListScreen({ decks = [], totalCardsCount = 0, deckStats = [] }) {
               value={importText}
               onChangeText={setImportText}
             />
-            <View style={[ styles.wsModalActions, { marginTop: 16 } ]}>
+            <View style={[styles.wsModalActions, { marginTop: 16 }]}>
               <TouchableOpacity onPress={() => setImportModalVisible(false)}>
                 <Text style={styles.wsModalCancel}>Cancelar</Text>
               </TouchableOpacity>
@@ -847,20 +1060,49 @@ function DeckListScreen({ decks = [], totalCardsCount = 0, deckStats = [] }) {
         </View>
       </Modal>
 
+      {/* Modal de Exportação de Arquivo */}
+      <Modal visible={exportModalVisible} transparent animationType="fade" onRequestClose={() => setExportModalVisible(false)}>
+        <View style={styles.wsModalOverlay}>
+          <View style={styles.wsModalBox}>
+            <Text style={styles.wsModalTitle}>Exportar Cartões</Text>
+            <Text style={{ color: theme.gray, fontSize: 13, marginBottom: 12 }}>
+              Escolha um nome para o arquivo que será salvo no dispositivo:
+            </Text>
+            <TextInput 
+              style={styles.wsInput} 
+              placeholder="Ex: meus_flashcards" 
+              placeholderTextColor="#666" 
+              value={exportFileName} 
+              onChangeText={setExportFileName} 
+            />
+            <View style={styles.wsModalActions}>
+              <TouchableOpacity onPress={() => setExportModalVisible(false)}>
+                <Text style={styles.wsModalCancel}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={executeFileExport}>
+                <View style={styles.wsModalConfirm}>
+                  <Text style={styles.wsModalConfirmText}>Exportar Arquivo</Text>
+                </View>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       {/* Modal de Configuração de Vozes */}
       <Modal visible={voicesConfigModalVisible} transparent animationType="fade" onRequestClose={() => setVoicesConfigModalVisible(false)}>
         <View style={styles.wsModalOverlay}>
           <View style={[styles.wsModalBox, { maxHeight: '80%', width: '90%' }]}>
             <Text style={styles.wsModalTitle}>Configurar Vozes</Text>
-            
+
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, backgroundColor: theme.card, padding: 12, borderRadius: 8 }}>
               <View style={{ flex: 1, paddingRight: 8 }}>
                 <Text style={{ color: theme.white, fontSize: 14, fontWeight: 'bold' }}>Leitura Automática</Text>
                 <Text style={{ color: theme.gray, fontSize: 12, marginTop: 4 }}>Ler automaticamente ao abrir ou virar os cards.</Text>
               </View>
-              <Switch 
-                value={autoPlayAudio} 
-                onValueChange={handleSetAutoPlayAudio} 
+              <Switch
+                value={autoPlayAudio}
+                onValueChange={handleSetAutoPlayAudio}
                 trackColor={{ false: theme.sep, true: theme.purple || '#673AB7' }}
                 thumbColor={'#FFF'}
               />
@@ -869,12 +1111,12 @@ function DeckListScreen({ decks = [], totalCardsCount = 0, deckStats = [] }) {
             <Text style={{ color: theme.gray, fontSize: 13, marginBottom: 12, textAlign: 'center' }}>
               Selecione o idioma abaixo para escolher a voz que será utilizada durante a leitura dos cards.
             </Text>
-            
+
             <ScrollView style={{ marginTop: 8, marginBottom: 16 }}>
               {SUPPORTED_LANGUAGES.map(lang => (
                 <View key={lang.code} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: theme.sep }}>
                   <Text style={{ color: theme.white, fontSize: 15 }}>{lang.icon} {lang.name}</Text>
-                  <TouchableOpacity 
+                  <TouchableOpacity
                     style={{ backgroundColor: theme.card, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 6, maxWidth: 150 }}
                     onPress={() => {
                       setSelectedLang(lang.code);
@@ -943,19 +1185,441 @@ function DeckListScreen({ decks = [], totalCardsCount = 0, deckStats = [] }) {
           if (id === 'import') handleImport();
           if (id === 'statistics') navigation.navigate('Statistics');
           if (id === 'settings') navigation.navigate('Configuracoes');
+          if (id === 'text_size') {
+            setTempTextSize(cardFontSize || 24);
+            setTextSizeModalVisible(true);
+          }
           if (id === 'voices') setVoicesConfigModalVisible(true);
+          if (id === 'help') setHelpModalVisible(true);
+          if (id === 'stopwatch_config') setStopwatchModalVisible(true);
         }}
         isDark={isDark}
         toggleTheme={() => setIsDark(!isDark)}
         theme={theme}
       />
+
+      {/* Modal de Tamanho do Texto */}
+      <Modal visible={textSizeModalVisible} transparent animationType="fade" onRequestClose={() => setTextSizeModalVisible(false)}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: 20 }}>
+          <View style={{ backgroundColor: theme.card, width: '100%', borderRadius: 16, padding: 20 }}>
+            <Text style={{ fontSize: 18, fontWeight: 'bold', color: theme.white, marginBottom: 16 }}>Tamanho do Texto nos Cards</Text>
+            
+            {/* Card de Preview */}
+            <View style={{ backgroundColor: theme.reviewCard || '#E3F2FD', borderRadius: 12, padding: 20, minHeight: 120, justifyContent: 'center', alignItems: 'center', marginBottom: 20 }}>
+              <Text style={{ fontSize: tempTextSize, color: theme.white, fontWeight: 'bold', textAlign: 'center' }}>
+                Preview do Texto
+              </Text>
+            </View>
+            
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 24 }}>
+              <TouchableOpacity style={{ backgroundColor: '#8DE8C7', width: 40, height: 40, borderRadius: 8, justifyContent: 'center', alignItems: 'center' }} onPress={() => setTempTextSize(Math.max(12, tempTextSize - 2))}>
+                <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#000' }}>-</Text>
+              </TouchableOpacity>
+              
+              <Text style={{ fontSize: 20, color: theme.white, marginHorizontal: 20, fontWeight: 'bold' }}>{tempTextSize}pt</Text>
+              
+              <TouchableOpacity style={{ backgroundColor: '#8DE8C7', width: 40, height: 40, borderRadius: 8, justifyContent: 'center', alignItems: 'center' }} onPress={() => setTempTextSize(Math.min(60, tempTextSize + 2))}>
+                <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#000' }}>+</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: 12 }}>
+              <TouchableOpacity style={{ padding: 12 }} onPress={() => setTextSizeModalVisible(false)}>
+                <Text style={{ color: theme.gray, fontWeight: 'bold' }}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={{ backgroundColor: theme.blue, paddingVertical: 12, paddingHorizontal: 20, borderRadius: 8 }} onPress={() => {
+                updateSettings(0, tempTextSize, autoPlayAudio);
+                setTextSizeModalVisible(false);
+              }}>
+                <Text style={{ color: '#FFF', fontWeight: 'bold' }}>Salvar</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Modal de Ajuda / Tutorial */}
+      <Modal visible={helpModalVisible} transparent animationType="slide" onRequestClose={() => setHelpModalVisible(false)}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)' }}>
+          <View style={{ flex: 1, marginTop: 48, borderTopLeftRadius: 24, borderTopRightRadius: 24, backgroundColor: theme.bg, overflow: 'hidden' }}>
+            {/* Header */}
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: theme.sep }}>
+              <Text style={{ fontSize: 20, fontWeight: 'bold', color: theme.white }}>📖 Como usar o App</Text>
+              <TouchableOpacity onPress={() => setHelpModalVisible(false)} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: theme.card, justifyContent: 'center', alignItems: 'center' }}>
+                <Text style={{ color: theme.white, fontSize: 18, fontWeight: 'bold' }}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 20, paddingBottom: 40 }}>
+              {/* Intro */}
+              <View style={{ backgroundColor: theme.purple || '#7B5CF5', borderRadius: 16, padding: 20, marginBottom: 24 }}>
+                <Text style={{ color: '#FFF', fontSize: 16, fontWeight: '600', lineHeight: 24 }}>Bem-vindo ao seu app de Flashcards! Aqui você cria conjuntos de cartões para estudar usando repetição espaçada. Veja abaixo todas as funcionalidades:</Text>
+              </View>
+
+              {/* Seção 1 - Conjuntos */}
+              <View style={{ marginBottom: 24 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
+                  <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: '#4CAF5022', justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
+                    <Text style={{ fontSize: 20 }}>📚</Text>
+                  </View>
+                  <Text style={{ fontSize: 17, fontWeight: 'bold', color: theme.white }}>Conjuntos (Decks)</Text>
+                </View>
+                <Text style={{ color: theme.gray, fontSize: 14, lineHeight: 22, marginLeft: 52 }}>São as pastas que organizam seus cartões por tema. Toque em <Text style={{ color: theme.blue, fontWeight: '600' }}>"+ CRIAR CONJUNTO"</Text> na parte inferior da tela para criar um novo. Toque em um conjunto para ver seus cartões.</Text>
+              </View>
+
+              {/* Seção 2 - Cartões */}
+              <View style={{ marginBottom: 24 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
+                  <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: '#2196F322', justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
+                    <Text style={{ fontSize: 20 }}>🃏</Text>
+                  </View>
+                  <Text style={{ fontSize: 17, fontWeight: 'bold', color: theme.white }}>Cartões (Flashcards)</Text>
+                </View>
+                <Text style={{ color: theme.gray, fontSize: 14, lineHeight: 22, marginLeft: 52 }}>Cada cartão tem uma <Text style={{ color: theme.white, fontWeight: '600' }}>frente</Text> (pergunta) e um <Text style={{ color: theme.white, fontWeight: '600' }}>verso</Text> (resposta). Dentro de um conjunto, use o menu <Text style={{ color: theme.blue }}>⋮</Text> para adicionar, editar ou excluir cartões.</Text>
+              </View>
+
+              {/* Seção 3 - Pesquisa */}
+              <View style={{ marginBottom: 24 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
+                  <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: '#FF980022', justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
+                    <Text style={{ fontSize: 20 }}>🔍</Text>
+                  </View>
+                  <Text style={{ fontSize: 17, fontWeight: 'bold', color: theme.white }}>Barra de Pesquisa</Text>
+                </View>
+                <Text style={{ color: theme.gray, fontSize: 14, lineHeight: 22, marginLeft: 52 }}>Use a barra no topo para pesquisar <Text style={{ color: theme.white, fontWeight: '600' }}>conjuntos pelo nome</Text> ou <Text style={{ color: theme.white, fontWeight: '600' }}>cartões pelo conteúdo</Text>. Ao encontrar um cartão, toque nele para ir direto ao conjunto.</Text>
+              </View>
+
+              {/* Seção 4 - Revisão */}
+              <View style={{ marginBottom: 24 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
+                  <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: '#E91E6322', justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
+                    <Text style={{ fontSize: 20 }}>🔄</Text>
+                  </View>
+                  <Text style={{ fontSize: 17, fontWeight: 'bold', color: theme.white }}>Revisão</Text>
+                </View>
+                <Text style={{ color: theme.gray, fontSize: 14, lineHeight: 22, marginLeft: 52 }}>Toque em <Text style={{ color: theme.blue, fontWeight: '600' }}>REVISÃO</Text> para revisar cartões pendentes. Durante a revisão, classifique cada cartão como Fácil, Bom, Difícil ou Errei para ajustar a repetição espaçada.</Text>
+              </View>
+
+              {/* Seção 5 - Prática */}
+              <View style={{ marginBottom: 24 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
+                  <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: '#9C27B022', justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
+                    <Text style={{ fontSize: 20 }}>🏋️</Text>
+                  </View>
+                  <Text style={{ fontSize: 17, fontWeight: 'bold', color: theme.white }}>Prática</Text>
+                </View>
+                <Text style={{ color: theme.gray, fontSize: 14, lineHeight: 22, marginLeft: 52 }}>O modo <Text style={{ color: theme.blue, fontWeight: '600' }}>PRÁTICA</Text> permite estudar cartões livremente sem afetar o agendamento de repetição espaçada. Ideal para revisar antes de provas.</Text>
+              </View>
+
+              {/* Seção 6 - Ciclo de Estudo */}
+              <View style={{ marginBottom: 24 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
+                  <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: '#4DA8DA22', justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
+                    <Text style={{ fontSize: 20 }}>📚</Text>
+                  </View>
+                  <Text style={{ fontSize: 17, fontWeight: 'bold', color: theme.white }}>Ciclo de Estudo</Text>
+                </View>
+                <Text style={{ color: theme.gray, fontSize: 14, lineHeight: 22, marginLeft: 52 }}>O botão <Text style={{ color: '#4DA8DA', fontWeight: '600' }}>CICLO</Text> monta automaticamente uma sessão otimizada misturando cartões atrasados, obrigatórios, erros anteriores e importantes. Configure as quantidades em <Text style={{ color: theme.blue }}>Configurações</Text>.</Text>
+              </View>
+
+              {/* Seção 7 - Meta Diária */}
+              <View style={{ marginBottom: 24 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
+                  <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: '#7B5CF522', justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
+                    <Text style={{ fontSize: 20 }}>🎯</Text>
+                  </View>
+                  <Text style={{ fontSize: 17, fontWeight: 'bold', color: theme.white }}>Meta Diária</Text>
+                </View>
+                <Text style={{ color: theme.gray, fontSize: 14, lineHeight: 22, marginLeft: 52 }}>A barra de progresso mostra quantos cartões você revisou hoje vs. sua meta. Toque no ícone <Text style={{ color: theme.white }}>⋮</Text> ao lado para ajustar sua meta diária.</Text>
+              </View>
+
+              {/* Seção 8 - Importar */}
+              <View style={{ marginBottom: 24 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
+                  <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: '#00BCD422', justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
+                    <Text style={{ fontSize: 20 }}>📥</Text>
+                  </View>
+                  <Text style={{ fontSize: 17, fontWeight: 'bold', color: theme.white }}>Importar Conjuntos</Text>
+                </View>
+                <Text style={{ color: theme.gray, fontSize: 14, lineHeight: 22, marginLeft: 52 }}>Abra o menu lateral <Text style={{ color: theme.white }}>☰</Text> e toque em <Text style={{ color: theme.blue, fontWeight: '600' }}>Importar</Text> para adicionar conjuntos a partir de arquivos de texto formatados.</Text>
+              </View>
+
+              {/* Seção 9 - Duplicatas */}
+              <View style={{ marginBottom: 24 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
+                  <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: '#FF980022', justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
+                    <Text style={{ fontSize: 20 }}>🔁</Text>
+                  </View>
+                  <Text style={{ fontSize: 17, fontWeight: 'bold', color: theme.white }}>Detectar Duplicatas</Text>
+                </View>
+                <Text style={{ color: theme.gray, fontSize: 14, lineHeight: 22, marginLeft: 52 }}>Toque em <Text style={{ color: '#FF9800', fontWeight: '600' }}>DUPLICATAS</Text> para encontrar e remover cartões repetidos nos seus conjuntos.</Text>
+              </View>
+
+              {/* Seção 10 - Estatísticas */}
+              <View style={{ marginBottom: 24 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
+                  <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: '#3B9EFF22', justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
+                    <Text style={{ fontSize: 20 }}>📊</Text>
+                  </View>
+                  <Text style={{ fontSize: 17, fontWeight: 'bold', color: theme.white }}>Estatísticas</Text>
+                </View>
+                <Text style={{ color: theme.gray, fontSize: 14, lineHeight: 22, marginLeft: 52 }}>Acesse pelo menu lateral para ver gráficos de desempenho, total de cartões estudados e sua evolução ao longo do tempo.</Text>
+              </View>
+
+              {/* Seção 11 - Vozes */}
+              <View style={{ marginBottom: 24 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
+                  <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: '#FF572222', justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
+                    <Text style={{ fontSize: 20 }}>🗣️</Text>
+                  </View>
+                  <Text style={{ fontSize: 17, fontWeight: 'bold', color: theme.white }}>Vozes e Áudio</Text>
+                </View>
+                <Text style={{ color: theme.gray, fontSize: 14, lineHeight: 22, marginLeft: 52 }}>Configure vozes diferentes para cada idioma em <Text style={{ color: theme.blue, fontWeight: '600' }}>Configurar Vozes</Text> no menu lateral. O app lê os cartões em voz alta automaticamente durante a revisão.</Text>
+              </View>
+
+              {/* Seção 12 - Tema */}
+              <View style={{ marginBottom: 12 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
+                  <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: '#ffffff11', justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
+                    <Text style={{ fontSize: 20 }}>🌙</Text>
+                  </View>
+                  <Text style={{ fontSize: 17, fontWeight: 'bold', color: theme.white }}>Tema Claro / Escuro</Text>
+                </View>
+                <Text style={{ color: theme.gray, fontSize: 14, lineHeight: 22, marginLeft: 52 }}>Alterne entre tema claro e escuro no menu lateral para maior conforto visual.</Text>
+              </View>
+            </ScrollView>
+
+            {/* Footer */}
+            <TouchableOpacity
+              style={{ backgroundColor: theme.blue, margin: 20, paddingVertical: 16, borderRadius: 12, alignItems: 'center' }}
+              onPress={() => setHelpModalVisible(false)}
+            >
+              <Text style={{ color: '#FFF', fontSize: 16, fontWeight: 'bold' }}>Entendi! 👍</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Modal de Configuração do Cronômetro */}
+      <Modal visible={stopwatchModalVisible} transparent animationType="fade" onRequestClose={() => setStopwatchModalVisible(false)}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: 20 }}>
+          <View style={{ backgroundColor: theme.card, width: '100%', borderRadius: 16, padding: 20 }}>
+            <Text style={{ fontSize: 18, fontWeight: 'bold', color: theme.white, marginBottom: 16 }}>Configuração do Cronômetro</Text>
+            
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+              <Text style={{ fontSize: 16, color: theme.white }}>Exibir Cronômetro na Revisão/Ciclo</Text>
+              <Switch
+                value={showStopwatch}
+                onValueChange={setShowStopwatch}
+                trackColor={{ false: '#767577', true: theme.blue }}
+                thumbColor={showStopwatch ? '#FFF' : '#f4f3f4'}
+              />
+            </View>
+
+            <View style={{ flexDirection: 'row', justifyContent: 'flex-end' }}>
+              <TouchableOpacity style={{ backgroundColor: theme.blue, paddingVertical: 12, paddingHorizontal: 20, borderRadius: 8 }} onPress={() => setStopwatchModalVisible(false)}>
+                <Text style={{ color: '#FFF', fontWeight: 'bold' }}>Fechar</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
     </View>
   );
 }
 
+const localStyles = StyleSheet.create({
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 15,
+    paddingHorizontal: 20,
+  },
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  iconButton: {
+    padding: 2,
+  },
+  greetingSection: {
+    marginTop: 10,
+    marginBottom: 20,
+    paddingHorizontal: 20,
+  },
+  greetingText: {
+    fontSize: 32,
+    fontWeight: '800',
+    color: '#1A1A1A',
+    lineHeight: 40,
+  },
+  searchInput: {
+    backgroundColor: '#FFF',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 12,
+    marginHorizontal: 20,
+    fontSize: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+  },
+  actionRowWrapper: {
+    paddingHorizontal: 20,
+    marginBottom: 20,
+  },
+  chipBtn: {
+    backgroundColor: '#FFF',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  chipText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#555',
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-end',
+    marginBottom: 15,
+    paddingHorizontal: 20,
+  },
+  sectionTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#333',
+  },
+  sectionSubtitle: {
+    fontSize: 14,
+    color: '#888',
+    fontWeight: '500',
+    marginBottom: 2,
+  },
+  listContent: {
+    paddingBottom: 100,
+    paddingHorizontal: 20,
+    gap: 15,
+  },
+  card: {
+    flexDirection: 'row',
+    backgroundColor: '#FFF',
+    borderRadius: 16,
+    padding: 16,
+    borderLeftWidth: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  cardContent: {
+    flex: 1,
+    justifyContent: 'center',
+  },
+  cardHeader: {
+    marginBottom: 12,
+  },
+  cardTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 4,
+  },
+  cardSubtitle: {
+    fontSize: 14,
+    color: '#777',
+    fontWeight: '500',
+  },
+  progressContainer: {
+    marginTop: 4,
+  },
+  progressBarBackground: {
+    height: 8,
+    backgroundColor: '#EEEEEE',
+    borderRadius: 4,
+    overflow: 'hidden',
+    width: '90%',
+  },
+  progressBarFill: {
+    height: '100%',
+    borderRadius: 4,
+  },
+  cardRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  progressCircle: {
+    width: 45,
+    height: 45,
+    borderRadius: 22.5,
+    borderWidth: 3,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  progressCircleText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#333',
+  },
+  footer: {
+    paddingVertical: 20,
+    paddingHorizontal: 20,
+    alignItems: 'center',
+    position: 'absolute',
+    bottom: 0,
+    width: '100%',
+    backgroundColor: 'rgba(248, 249, 250, 0.9)',
+  },
+  createButton: {
+    backgroundColor: '#2196F3',
+    paddingVertical: 16,
+    paddingHorizontal: 40,
+    borderRadius: 30,
+    width: '100%',
+    alignItems: 'center',
+    shadowColor: '#2196F3',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  createButtonText: {
+    color: '#FFF',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+});
+
 const DeckListScreenWrapper = (props) => {
   const { data: decks } = useLiveQuery(db.select().from(sets).orderBy(asc(sets.title)));
-  
+
   // Agregação Otimizada: Em vez de carregar todos os potenciais cartões (full scan), 
   // agrupamos no lado do banco valendo-se do índice idx_cards_set_id
   const { data: deckStats } = useLiveQuery(
@@ -965,10 +1629,10 @@ const DeckListScreenWrapper = (props) => {
       memorized: sql`sum(CASE WHEN ${cards.difficultyStatus} IN ('good', 'easy') THEN 1 ELSE 0 END)`.mapWith(Number)
     }).from(cards).groupBy(cards.set_id)
   );
-  
+
   // Soma total baseada nas agregações
   const totalCardsCount = (deckStats || []).reduce((acc, curr) => acc + (curr.total || 0), 0);
-  
+
   return <DeckListScreen decks={decks || []} totalCardsCount={totalCardsCount} deckStats={deckStats || []} {...props} />;
 };
 

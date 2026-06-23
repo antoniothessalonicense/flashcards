@@ -10,14 +10,6 @@
       "env": {
         "EXPO_TOKEN": "seu_token_copiado_aqui"
       }
-    },
-    "filesystem": {
-      "command": "npx",
-      "args": [
-        "-y",
-        "@modelcontextprotocol/server-filesystem",
-        "."
-      ]
     }
   }
 }

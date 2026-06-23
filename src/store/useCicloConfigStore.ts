@@ -17,6 +17,11 @@ export interface CicloConfig {
   qtdConjuntosFixosPorCiclo: number;
   cardsPorConjuntoFixo: number;
   conjuntosFixosSelecionados: string[];
+  qtdConjuntosAleatorios: number;
+  cardsPorConjuntoAleatorio: number;
+  globalTagLimit: number;
+  surpriseTagsCount: number;
+  cardsPerSurpriseTag: number;
 }
 
 interface CicloConfigActions {
@@ -45,6 +50,11 @@ export const CICLO_DEFAULTS: CicloConfig = {
   qtdConjuntosFixosPorCiclo: 1,
   cardsPorConjuntoFixo: 20,
   conjuntosFixosSelecionados: [],
+  qtdConjuntosAleatorios: 1,
+  cardsPorConjuntoAleatorio: 10,
+  globalTagLimit: 5,
+  surpriseTagsCount: 2,
+  cardsPerSurpriseTag: 5,
 };
 
 // ─────────────────────────────────────────────
@@ -74,6 +84,11 @@ export const useCicloConfigStore = create<CicloConfigStore>()(
           qtdConjuntosFixosPorCiclo: row.qtdConjuntosFixosPorCiclo ?? CICLO_DEFAULTS.qtdConjuntosFixosPorCiclo,
           cardsPorConjuntoFixo: row.cardsPorConjuntoFixo ?? CICLO_DEFAULTS.cardsPorConjuntoFixo,
           conjuntosFixosSelecionados: row.conjuntosFixosSelecionados ? JSON.parse(row.conjuntosFixosSelecionados) : CICLO_DEFAULTS.conjuntosFixosSelecionados,
+          qtdConjuntosAleatorios: row.qtdConjuntosAleatorios ?? CICLO_DEFAULTS.qtdConjuntosAleatorios,
+          cardsPorConjuntoAleatorio: row.cardsPorConjuntoAleatorio ?? CICLO_DEFAULTS.cardsPorConjuntoAleatorio,
+          globalTagLimit: row.globalTagLimit ?? CICLO_DEFAULTS.globalTagLimit,
+          surpriseTagsCount: row.surpriseTagsCount ?? CICLO_DEFAULTS.surpriseTagsCount,
+          cardsPerSurpriseTag: row.cardsPerSurpriseTag ?? CICLO_DEFAULTS.cardsPerSurpriseTag,
         }),
     }),
     {

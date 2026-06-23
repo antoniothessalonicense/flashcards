@@ -23,6 +23,7 @@ export const cards = sqliteTable('cards', {
   ease_factor: integer('ease_factor').notNull().default(250),
   difficultyStatus: text('difficultyStatus').notNull().default('new'),
   isImportant: integer('isImportant').notNull().default(0),
+  tag: text('tag'),
 }, (table) => ({
   idx_next_review_date: index('idx_cards_next_review_date').on(table.next_review_date),
   idx_set_id: index('idx_cards_set_id').on(table.set_id),
@@ -41,6 +42,11 @@ export const cicloConfigs = sqliteTable('ciclo_configs', {
   qtdConjuntosFixosPorCiclo: integer('qtdConjuntosFixosPorCiclo').notNull().default(1),
   cardsPorConjuntoFixo: integer('cardsPorConjuntoFixo').notNull().default(20),
   conjuntosFixosSelecionados: text('conjuntosFixosSelecionados').notNull().default('[]'),
+  qtdConjuntosAleatorios: integer('qtdConjuntosAleatorios').notNull().default(1),
+  cardsPorConjuntoAleatorio: integer('cardsPorConjuntoAleatorio').notNull().default(10),
+  globalTagLimit: integer('globalTagLimit').notNull().default(5),
+  surpriseTagsCount: integer('surpriseTagsCount').notNull().default(2),
+  cardsPerSurpriseTag: integer('cardsPerSurpriseTag').notNull().default(5),
 });
 
 export type SetsTable = typeof sets;

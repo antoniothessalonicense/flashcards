@@ -12,14 +12,18 @@ import { toggleCardImportant } from '../../dbServices.drizzle';
 
 const formatTextForDisplay = (text) => {
   if (!text) return '';
-  return text.replace(/<\/?en>/ig, '');
+  return text.replace(/<\/?en>/ig, '').replace(/<\/?mudo>/ig, '');
 };
 
 const playMixedTTS = (text, baseLang, preferredVoices, overrideVoice = null) => {
   if (!text) return;
-  const parts = text.split(/(<en>.*?<\/en>)/ig);
+  const parts = text.split(/(<en>.*?<\/en>|<mudo>.*?<\/mudo>)/ig);
   for (const p of parts) {
     if (!p) continue;
+    // Tag <mudo>: conteúdo é completamente ignorado pelo TTS
+    if (p.toLowerCase().startsWith('<mudo>') && p.toLowerCase().endsWith('</mudo>')) {
+      continue;
+    }
     if (p.toLowerCase().startsWith('<en>') && p.toLowerCase().endsWith('</en>')) {
       const enText = p.replace(/<\/?en>/ig, '').trim();
       if (enText) {
@@ -47,6 +51,7 @@ const DeckCardItem = ({ item, deck, onMenuPress, theme, styles, preferredVoices 
       <View style={{ flex: 1 }}>
         <Text style={styles.ddCardFront} numberOfLines={3}>{formatTextForDisplay(item.front)}</Text>
         <Text style={styles.ddCardBack} numberOfLines={3}>{formatTextForDisplay(item.back)}</Text>
+        {item.tag ? <Text style={styles.ddCardTag}>⭐ {item.tag}</Text> : null}
       </View>
       <View style={styles.ddCardFooter}>
         <TouchableOpacity onPress={() => {
@@ -76,53 +81,57 @@ function DeckDetailsScreenContent({ deck, deckCards = [] }) {
   const [cardModal, setCardModal] = useState(false);
   const [cardFront, setCardFront] = useState('');
   const [cardBack, setCardBack] = useState('');
-  
+  const [cardTag, setCardTag] = useState('');
+
   const [cardMenuAtivo, setCardMenuAtivo] = useState(null);
   const [editCardModal, setEditCardModal] = useState(false);
   const [editCardFront, setEditCardFront] = useState('');
   const [editCardBack, setEditCardBack] = useState('');
+  const [editCardTag, setEditCardTag] = useState('');
   const [editingCardId, setEditingCardId] = useState(null);
 
   const onBack = () => navigation.goBack();
   const onPractice = () => navigation.navigate('Practice', { deckId: deck.id });
 
-  const onAddCard = async (deckId, front, back) => {
-    try { 
+  const onAddCard = async (deckId, front, back, tag) => {
+    try {
       const newCardId = `${Date.now()}-${Math.floor(Math.random() * 100000)}`;
       await db.insert(cards).values({
         id: newCardId,
         set_id: deckId,
         front: front.trim(),
         back: back.trim(),
+        tag: tag ? tag.trim() : null,
         next_review_date: Date.now(),
         ease_factor: 250,
         difficultyStatus: 'new'
-      }).returning(); 
-    } catch (e) { 
-      console.error('Erro ao adicionar cartão:', e); 
+      }).returning();
+    } catch (e) {
+      console.error('Erro ao adicionar cartão:', e);
     }
   };
   const onDeleteCard = async (cardId) => {
-    try { 
-      await db.delete(cards).where(eq(cards.id, cardId)).returning(); 
-    } catch (e) { 
-      console.error('Erro ao deletar cartão:', e); 
+    try {
+      await db.delete(cards).where(eq(cards.id, cardId)).returning();
+    } catch (e) {
+      console.error('Erro ao deletar cartão:', e);
     }
   };
-  const onUpdateCard = async (cardId, front, back) => {
-    try { 
-      await db.update(cards).set({ 
-        front: front.trim(), 
-        back: back.trim() 
-      }).where(eq(cards.id, cardId)).returning(); 
-    } catch (e) { 
-      console.error('Erro ao atualizar cartão:', e); 
+  const onUpdateCard = async (cardId, front, back, tag) => {
+    try {
+      await db.update(cards).set({
+        front: front.trim(),
+        back: back.trim(),
+        tag: tag ? tag.trim() : null
+      }).where(eq(cards.id, cardId)).returning();
+    } catch (e) {
+      console.error('Erro ao atualizar cartão:', e);
     }
   };
 
-  const handleCloseModal = () => { setCardModal(false); setCardFront(''); setCardBack(''); };
-  const handleAdd = () => { if (cardFront.trim() && cardBack.trim()) { onAddCard(deck.id, cardFront, cardBack); setCardFront(''); setCardBack(''); } };
-  const handleFinish = () => { if (cardFront.trim() && cardBack.trim()) { onAddCard(deck.id, cardFront, cardBack); } handleCloseModal(); };
+  const handleCloseModal = () => { setCardModal(false); setCardFront(''); setCardBack(''); setCardTag(''); };
+  const handleAdd = () => { if (cardFront.trim() && cardBack.trim()) { onAddCard(deck.id, cardFront, cardBack, cardTag); setCardFront(''); setCardBack(''); setCardTag(''); } };
+  const handleFinish = () => { if (cardFront.trim() && cardBack.trim()) { onAddCard(deck.id, cardFront, cardBack, cardTag); } handleCloseModal(); };
 
   return (
     <View style={[styles.screen, { paddingTop: insets.top }]}>
@@ -168,6 +177,7 @@ function DeckDetailsScreenContent({ deck, deckCards = [] }) {
             <Text style={styles.wsModalTitle}>Adicionar Cartão</Text>
             <TextInput style={styles.wsInput} placeholder="Frente (Pergunta)" placeholderTextColor="#666" value={cardFront} onChangeText={setCardFront} />
             <TextInput style={[styles.wsInput, { marginTop: 10 }]} placeholder="Verso (Resposta)" placeholderTextColor="#666" value={cardBack} onChangeText={setCardBack} />
+            <TextInput style={[styles.wsInput, { marginTop: 10 }]} placeholder="Tag (Opcional)" placeholderTextColor="#666" value={cardTag} onChangeText={setCardTag} />
             <View style={styles.wsModalActions}>
               <TouchableOpacity onPress={handleCloseModal}><Text style={styles.wsModalCancel}>Cancelar</Text></TouchableOpacity>
               <TouchableOpacity onPress={handleAdd}><View style={styles.wsModalConfirm}><Text style={styles.wsModalConfirmText}>Adicionar +</Text></View></TouchableOpacity>
@@ -180,7 +190,7 @@ function DeckDetailsScreenContent({ deck, deckCards = [] }) {
       <Modal visible={cardMenuAtivo !== null} transparent={true} animationType="fade" onRequestClose={() => setCardMenuAtivo(null)}>
         <TouchableOpacity style={styles.contextOverlay} activeOpacity={1} onPress={() => setCardMenuAtivo(null)}>
           <View style={styles.contextMenu}>
-            <TouchableOpacity style={styles.contextMenuItem} onPress={() => { setEditingCardId(cardMenuAtivo.id); setEditCardFront(cardMenuAtivo.front); setEditCardBack(cardMenuAtivo.back); setCardMenuAtivo(null); setEditCardModal(true); }}>
+            <TouchableOpacity style={styles.contextMenuItem} onPress={() => { setEditingCardId(cardMenuAtivo.id); setEditCardFront(cardMenuAtivo.front); setEditCardBack(cardMenuAtivo.back); setEditCardTag(cardMenuAtivo.tag || ''); setCardMenuAtivo(null); setEditCardModal(true); }}>
               <Text style={styles.contextMenuText}>Editar</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.contextMenuItem} onPress={() => { Alert.alert('Excluir', 'Tem certeza que deseja excluir este cartão?', [{ text: 'Cancelar', style: 'cancel' }, { text: 'Excluir', style: 'destructive', onPress: () => onDeleteCard(cardMenuAtivo.id) }]); setCardMenuAtivo(null); }}>
@@ -196,9 +206,10 @@ function DeckDetailsScreenContent({ deck, deckCards = [] }) {
             <Text style={styles.wsModalTitle}>Editar Cartão</Text>
             <TextInput style={styles.wsInput} placeholder="Frente (Pergunta)" placeholderTextColor="#666" value={editCardFront} onChangeText={setEditCardFront} />
             <TextInput style={[styles.wsInput, { marginTop: 10 }]} placeholder="Verso (Resposta)" placeholderTextColor="#666" value={editCardBack} onChangeText={setEditCardBack} />
+            <TextInput style={[styles.wsInput, { marginTop: 10 }]} placeholder="Tag (Opcional)" placeholderTextColor="#666" value={editCardTag} onChangeText={setEditCardTag} />
             <View style={styles.wsModalActions}>
               <TouchableOpacity onPress={() => setEditCardModal(false)}><Text style={styles.wsModalCancel}>Cancelar</Text></TouchableOpacity>
-              <TouchableOpacity onPress={() => { if (editCardFront.trim() && editCardBack.trim()) { onUpdateCard(editingCardId, editCardFront, editCardBack); setEditCardModal(false); } }}>
+              <TouchableOpacity onPress={() => { if (editCardFront.trim() && editCardBack.trim()) { onUpdateCard(editingCardId, editCardFront, editCardBack, editCardTag); setEditCardModal(false); } }}>
                 <View style={styles.wsModalConfirm}><Text style={styles.wsModalConfirmText}>Salvar</Text></View>
               </TouchableOpacity>
             </View>

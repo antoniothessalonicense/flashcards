@@ -109,6 +109,11 @@ export async function saveCycleConfig(config) {
     qtdConjuntosFixosPorCiclo: config.qtdConjuntosFixosPorCiclo,
     cardsPorConjuntoFixo: config.cardsPorConjuntoFixo,
     conjuntosFixosSelecionados: config.conjuntosFixosSelecionados ? JSON.stringify(config.conjuntosFixosSelecionados) : '[]',
+    qtdConjuntosAleatorios: config.qtdConjuntosAleatorios,
+    cardsPorConjuntoAleatorio: config.cardsPorConjuntoAleatorio,
+    globalTagLimit: config.globalTagLimit,
+    surpriseTagsCount: config.surpriseTagsCount,
+    cardsPerSurpriseTag: config.cardsPerSurpriseTag,
   };
 
   if (existing) {
@@ -131,7 +136,6 @@ export async function toggleCardImportant(cardId) {
   return newValue;
 }
 
-// ── Monta o ciclo de estudo real com queries ao banco ──
 export async function buildCycleCards(config) {
   const resultado = {
     atrasados: [],
@@ -139,7 +143,12 @@ export async function buildCycleCards(config) {
     erros: [],
     importantes: [],
     fixos: [],
+    aleatorios: [],
   };
+
+  const tagCounts = {};
+  const idsCardsJaSelecionados = new Set();
+  const idsAtrasadosSet = new Set();
 
   // 1. CONJUNTOS ATRASADOS
   // Pega os N conjuntos com next_review_date mais antigo (mais atrasados)
@@ -151,12 +160,38 @@ export async function buildCycleCards(config) {
     .limit(config.qtdConjuntosAtrasados);
 
   for (const s of setsAtrasados) {
+    idsAtrasadosSet.add(s.id);
     const cardsDoSet = await db.select()
       .from(cards)
       .where(eq(cards.set_id, s.id))
       .orderBy(sql`${cards.next_review_date} ASC`)
-      .limit(config.cardsPorConjuntoAtrasado);
-    resultado.atrasados.push(...cardsDoSet);
+      .limit(config.cardsPorConjuntoAtrasado + 50);
+
+    const filtrados = [];
+    const rejeitados = [];
+
+    for (const card of cardsDoSet) {
+      if (filtrados.length >= config.cardsPorConjuntoAtrasado) break;
+      if (idsCardsJaSelecionados.has(card.id)) continue;
+      
+      const t = card.tag || 'sem_tag';
+      if ((tagCounts[t] || 0) < config.globalTagLimit) {
+        filtrados.push(card);
+        tagCounts[t] = (tagCounts[t] || 0) + 1;
+      } else {
+        rejeitados.push(card);
+      }
+    }
+
+    // Fallback: ignorando tags
+    let i = 0;
+    while (filtrados.length < config.cardsPorConjuntoAtrasado && i < rejeitados.length) {
+      filtrados.push(rejeitados[i]);
+      i++;
+    }
+
+    resultado.atrasados.push(...filtrados);
+    filtrados.forEach(c => idsCardsJaSelecionados.add(c.id));
   }
 
   // 2. REVISÃO OBRIGATÓRIA (Progressão Kumon)
@@ -170,10 +205,6 @@ export async function buildCycleCards(config) {
   const setsOrdenados = statsAll
     .map(s => ({ ...s, pct: s.total > 0 ? (s.memorized || 0) / s.total : 0 }))
     .sort((a, b) => a.pct - b.pct);
-
-  // IDs dos sets que já foram usados em "atrasados"
-  const idsAtrasadosSet = new Set(setsAtrasados.map(s => s.id));
-  const idsCardsJaSelecionados = new Set(resultado.atrasados.map(c => c.id));
 
   let obrigatoriosRestantes = config.cardsPorConjuntoObrigatorio;
   for (const s of setsOrdenados) {
@@ -243,13 +274,59 @@ export async function buildCycleCards(config) {
       .from(cards)
       .where(eq(cards.set_id, s.id))
       .orderBy(sql`${cards.next_review_date} ASC`)
-      .limit(config.cardsPorConjuntoFixo + idsCardsJaSelecionados.size);
+      .limit(config.cardsPorConjuntoFixo + idsCardsJaSelecionados.size + 50);
 
-    const novos = cardsDoSet
-      .filter(c => !idsCardsJaSelecionados.has(c.id))
-      .slice(0, config.cardsPorConjuntoFixo);
-    resultado.fixos.push(...novos);
-    novos.forEach(c => idsCardsJaSelecionados.add(c.id));
+    const pool = cardsDoSet.filter(c => !idsCardsJaSelecionados.has(c.id));
+    const filtrados = [];
+    const rejeitados = [];
+
+    for (const card of pool) {
+      if (filtrados.length >= config.cardsPorConjuntoFixo) break;
+      const t = card.tag || 'sem_tag';
+      if ((tagCounts[t] || 0) < config.globalTagLimit) {
+        filtrados.push(card);
+        tagCounts[t] = (tagCounts[t] || 0) + 1;
+      } else {
+        rejeitados.push(card);
+      }
+    }
+
+    // Fallback: ignorando tags
+    let i = 0;
+    while (filtrados.length < config.cardsPorConjuntoFixo && i < rejeitados.length) {
+      filtrados.push(rejeitados[i]);
+      i++;
+    }
+
+    resultado.fixos.push(...filtrados);
+    filtrados.forEach(c => idsCardsJaSelecionados.add(c.id));
+  }
+
+  // 6. TAGS SURPRESA (Prática Intercalada)
+  if (config.surpriseTagsCount > 0 && config.cardsPerSurpriseTag > 0) {
+    const randomTagsResult = await db.select({ tag: cards.tag })
+      .from(cards)
+      .where(sql`${cards.tag} IS NOT NULL AND ${cards.tag} != ''`)
+      .groupBy(cards.tag)
+      .orderBy(sql`RANDOM()`)
+      .limit(config.surpriseTagsCount);
+
+    const randomTags = randomTagsResult.map(r => r.tag).filter(t => t);
+
+    for (const tagVal of randomTags) {
+      const cardsDaTag = await db.select()
+        .from(cards)
+        .where(eq(cards.tag, tagVal))
+        .orderBy(sql`RANDOM()`)
+        .limit(config.cardsPerSurpriseTag + idsCardsJaSelecionados.size);
+
+      const novosAleatorios = cardsDaTag
+        .filter(c => !idsCardsJaSelecionados.has(c.id))
+        .slice(0, config.cardsPerSurpriseTag);
+
+      resultado.aleatorios.push(...novosAleatorios);
+      novosAleatorios.forEach(c => idsCardsJaSelecionados.add(c.id));
+    }
   }
 
   // Monta o array final (todos os cards sem duplicatas)
@@ -259,6 +336,7 @@ export async function buildCycleCards(config) {
     ...resultado.erros,
     ...resultado.importantes,
     ...resultado.fixos,
+    ...resultado.aleatorios,
   ];
 
   // Aplica limite diário se ativo
@@ -274,6 +352,7 @@ export async function buildCycleCards(config) {
       erros: resultado.erros.length,
       importantes: resultado.importantes.length,
       fixos: resultado.fixos.length,
+      aleatorios: resultado.aleatorios.length,
       total: totalFinal.length,
     },
   };

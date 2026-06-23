@@ -50,7 +50,9 @@ const initializeDatabase = async (db) => {
         back TEXT NOT NULL,
         next_review_date INTEGER NOT NULL DEFAULT 0,
         ease_factor INTEGER NOT NULL DEFAULT 250,
-        difficultyStatus TEXT NOT NULL DEFAULT 'new'
+        difficultyStatus TEXT NOT NULL DEFAULT 'new',
+        isImportant INTEGER NOT NULL DEFAULT 0,
+        tag TEXT
       );
     `);
 
@@ -112,6 +114,10 @@ const initializeDatabase = async (db) => {
       await db.execAsync("ALTER TABLE cards ADD COLUMN isImportant INTEGER NOT NULL DEFAULT 0;");
       console.log("Migração: Coluna isImportant adicionada!");
     }
+    if (!cardsColumns.includes('tag')) {
+      await db.execAsync("ALTER TABLE cards ADD COLUMN tag TEXT;");
+      console.log("Migração: Coluna tag adicionada!");
+    }
     await db.execAsync(`CREATE INDEX IF NOT EXISTS idx_cards_isImportant ON cards(isImportant);`);
 
     // 3. Criação/migração da tabela ciclo_configs
@@ -127,7 +133,12 @@ const initializeDatabase = async (db) => {
         cardsImportantes INTEGER NOT NULL DEFAULT 20,
         qtdConjuntosFixosPorCiclo INTEGER NOT NULL DEFAULT 1,
         cardsPorConjuntoFixo INTEGER NOT NULL DEFAULT 20,
-        conjuntosFixosSelecionados TEXT NOT NULL DEFAULT '[]'
+        conjuntosFixosSelecionados TEXT NOT NULL DEFAULT '[]',
+        qtdConjuntosAleatorios INTEGER NOT NULL DEFAULT 1,
+        cardsPorConjuntoAleatorio INTEGER NOT NULL DEFAULT 10,
+        globalTagLimit INTEGER NOT NULL DEFAULT 5,
+        surpriseTagsCount INTEGER NOT NULL DEFAULT 2,
+        cardsPerSurpriseTag INTEGER NOT NULL DEFAULT 5
       );
     `);
 
@@ -135,6 +146,21 @@ const initializeDatabase = async (db) => {
     const configColumns = configInfo.map(col => col.name);
     if (!configColumns.includes('conjuntosFixosSelecionados')) {
       await db.execAsync("ALTER TABLE ciclo_configs ADD COLUMN conjuntosFixosSelecionados TEXT NOT NULL DEFAULT '[]';");
+    }
+    if (!configColumns.includes('qtdConjuntosAleatorios')) {
+      await db.execAsync("ALTER TABLE ciclo_configs ADD COLUMN qtdConjuntosAleatorios INTEGER NOT NULL DEFAULT 1;");
+    }
+    if (!configColumns.includes('cardsPorConjuntoAleatorio')) {
+      await db.execAsync("ALTER TABLE ciclo_configs ADD COLUMN cardsPorConjuntoAleatorio INTEGER NOT NULL DEFAULT 10;");
+    }
+    if (!configColumns.includes('globalTagLimit')) {
+      await db.execAsync("ALTER TABLE ciclo_configs ADD COLUMN globalTagLimit INTEGER NOT NULL DEFAULT 5;");
+    }
+    if (!configColumns.includes('surpriseTagsCount')) {
+      await db.execAsync("ALTER TABLE ciclo_configs ADD COLUMN surpriseTagsCount INTEGER NOT NULL DEFAULT 2;");
+    }
+    if (!configColumns.includes('cardsPerSurpriseTag')) {
+      await db.execAsync("ALTER TABLE ciclo_configs ADD COLUMN cardsPerSurpriseTag INTEGER NOT NULL DEFAULT 5;");
     }
 
     // 4. Semeando dados (agora as colunas obrigatórias estão garantidas)

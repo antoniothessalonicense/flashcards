@@ -1,0 +1,507 @@
+{
+  "communities": {
+    "0": [
+      "app_layout",
+      "app_layout_rootlayout",
+      "components_createdeckmodal",
+      "components_createdeckmodal_createdeckmodal",
+      "components_createdeckmodal_styles",
+      "components_livesetslist",
+      "components_livesetslist_livesetslist",
+      "components_livesetslist_setrow",
+      "components_livesetslist_styles",
+      "components_workspaceselectormodal",
+      "components_workspaceselectormodal_styles",
+      "components_workspaceselectormodal_workspaceselectormodal",
+      "db_index",
+      "db_index_db",
+      "db_index_sqlitedb",
+      "db_schema",
+      "db_schema_cards",
+      "db_schema_cardstable",
+      "db_schema_cicloconfigs",
+      "db_schema_cicloconfigstable",
+      "db_schema_sets",
+      "db_schema_setstable",
+      "dbservices_drizzle_togglecardimportant",
+      "drizzle_migrations",
+      "screens_deckdetailsscreen",
+      "screens_deckdetailsscreen_deckcarditem",
+      "screens_deckdetailsscreen_deckdetailsscreen",
+      "screens_deckdetailsscreen_deckdetailsscreencontent",
+      "screens_deckdetailsscreen_formattextfordisplay",
+      "screens_deckdetailsscreen_playmixedtts",
+      "screens_reviewscreen",
+      "screens_reviewscreen_formattextfordisplay",
+      "screens_reviewscreen_playmixedtts",
+      "screens_reviewscreen_reviewscreencomponent",
+      "screens_reviewscreen_styles",
+      "screens_statisticsscreen",
+      "screens_statisticsscreen_statisticsscreen",
+      "screens_statisticsscreen_styles"
+    ],
+    "1": [
+      "package_dependencies",
+      "package_dependencies_drizzle_orm",
+      "package_dependencies_expo",
+      "package_dependencies_expo_auth_session",
+      "package_dependencies_expo_build_properties",
+      "package_dependencies_expo_client",
+      "package_dependencies_expo_clipboard",
+      "package_dependencies_expo_crypto",
+      "package_dependencies_expo_dev_client",
+      "package_dependencies_expo_document_picker",
+      "package_dependencies_expo_file_system",
+      "package_dependencies_expo_font",
+      "package_dependencies_expo_linear_gradient",
+      "package_dependencies_expo_mcp",
+      "package_dependencies_expo_speech",
+      "package_dependencies_expo_splash_screen",
+      "package_dependencies_expo_sqlite",
+      "package_dependencies_expo_status_bar",
+      "package_dependencies_expo_system_ui",
+      "package_dependencies_expo_updates",
+      "package_dependencies_expo_vector_icons",
+      "package_dependencies_lottie_react_native",
+      "package_dependencies_react",
+      "package_dependencies_react_native",
+      "package_dependencies_react_native_async_storage_async_storage",
+      "package_dependencies_react_native_get_random_values",
+      "package_dependencies_react_native_google_signin_google_signin",
+      "package_dependencies_react_native_safe_area_context",
+      "package_dependencies_react_native_screens",
+      "package_dependencies_react_navigation_native",
+      "package_dependencies_react_navigation_native_stack",
+      "package_dependencies_zod",
+      "package_dependencies_zustand"
+    ],
+    "2": [
+      "app",
+      "app_app",
+      "app_initializedatabase",
+      "app_root",
+      "context_appcontext",
+      "context_appcontext_appcontext",
+      "context_appcontext_appprovider",
+      "index",
+      "navigation_appnavigator",
+      "navigation_appnavigator_appnavigator",
+      "navigation_appnavigator_stack",
+      "screens_decklistscreen_decklistscreenwrapper",
+      "screens_practicepicker",
+      "screens_practicepicker_modos",
+      "screens_practicepicker_practicepicker",
+      "screens_reviewscreen_reviewscreen",
+      "src_screens_loginscreen_js_screens_loginscreen",
+      "src_screens_loginscreen_js_screens_loginscreen_loginscreen",
+      "src_screens_loginscreen_js_screens_loginscreen_styles",
+      "tests_decklistscreen_test",
+      "tests_decklistscreen_test_mockstyles",
+      "tests_decklistscreen_test_mocktheme",
+      "tests_decklistscreen_test_wrapper",
+      "theme_theme",
+      "theme_theme_getstyles",
+      "theme_theme_gettheme"
+    ],
+    "3": [
+      "config_api_config",
+      "config_api_config_apiconfig",
+      "config_api_config_config",
+      "config_api_config_getbaseurl",
+      "config_api_config_isandroidemulator",
+      "config_api_config_isdevbuild",
+      "config_api_config_isreleasebuild",
+      "config_api_example",
+      "config_api_example_cardservice",
+      "config_api_example_deckservice",
+      "config_api_example_syncservice",
+      "config_api_example_userservice",
+      "config_api_service",
+      "config_api_service_apidelete",
+      "config_api_service_apifetch",
+      "config_api_service_apiget",
+      "config_api_service_apipost",
+      "config_api_service_apiput",
+      "config_api_validator",
+      "config_api_validator_healthcheck",
+      "config_api_validator_printvalidationreport",
+      "config_api_validator_validateapiconfig",
+      "config_apicontext_example",
+      "config_apicontext_example_apicontext",
+      "config_apicontext_example_apiprovider"
+    ],
+    "4": [
+      "package",
+      "package_devdependencies",
+      "package_devdependencies_babel_core",
+      "package_devdependencies_babel_plugin_proposal_decorators",
+      "package_devdependencies_better_sqlite3",
+      "package_devdependencies_drizzle_kit",
+      "package_devdependencies_eslint",
+      "package_devdependencies_expo_mcp",
+      "package_devdependencies_jest",
+      "package_devdependencies_jest_expo",
+      "package_devdependencies_react_native_jest_preset",
+      "package_devdependencies_react_test_renderer",
+      "package_devdependencies_testing_library_react_native",
+      "package_devdependencies_ts_jest",
+      "package_devdependencies_types_jest",
+      "package_devdependencies_types_react",
+      "package_devdependencies_typescript",
+      "package_devdependencies_uuid",
+      "package_jest",
+      "package_jest_preset",
+      "package_jest_transformignorepatterns",
+      "package_main",
+      "package_name",
+      "package_private",
+      "package_version"
+    ],
+    "5": [
+      "dbservices_drizzle",
+      "dbservices_drizzle_buildcyclecards",
+      "dbservices_drizzle_createcard",
+      "dbservices_drizzle_createdeck",
+      "dbservices_drizzle_createworkspace",
+      "dbservices_drizzle_deletecard",
+      "dbservices_drizzle_deletedeck",
+      "dbservices_drizzle_genid",
+      "dbservices_drizzle_getcycleconfig",
+      "dbservices_drizzle_savecycleconfig",
+      "dbservices_drizzle_seedinitialdata",
+      "dbservices_drizzle_updatecard",
+      "dbservices_drizzle_updatedeck",
+      "screens_configuracaocicloscreen",
+      "screens_configuracaocicloscreen_configuracaocicloscreen",
+      "screens_configuracaocicloscreen_styles",
+      "screens_decklistscreen_decklistscreen",
+      "store_usecicloconfigstore",
+      "store_usecicloconfigstore_ciclo_defaults",
+      "store_usecicloconfigstore_cicloconfig",
+      "store_usecicloconfigstore_cicloconfigactions",
+      "store_usecicloconfigstore_cicloconfigstore",
+      "store_usecicloconfigstore_usecicloconfigstore"
+    ],
+    "6": [
+      "components_menuscreen",
+      "components_menuscreen_menu_items",
+      "components_menuscreen_menuscreen",
+      "components_menuscreen_styles",
+      "components_shared",
+      "components_shared_badge",
+      "components_shared_progressbar",
+      "components_shared_styles",
+      "screens_decklistscreen",
+      "screens_decklistscreen_colors",
+      "screens_decklistscreen_deckitem",
+      "screens_decklistscreen_flashcardschema",
+      "screens_decklistscreen_genid",
+      "screens_decklistscreen_getdeckcolor",
+      "screens_decklistscreen_localstyles",
+      "screens_decklistscreen_supported_languages",
+      "src_temp_import"
+    ],
+    "7": [
+      "tsconfig_base",
+      "tsconfig_base_compileroptions",
+      "tsconfig_base_compileroptions_allowjs",
+      "tsconfig_base_compileroptions_customconditions",
+      "tsconfig_base_compileroptions_esmoduleinterop",
+      "tsconfig_base_compileroptions_jsx",
+      "tsconfig_base_compileroptions_lib",
+      "tsconfig_base_compileroptions_module",
+      "tsconfig_base_compileroptions_moduledetection",
+      "tsconfig_base_compileroptions_moduleresolution",
+      "tsconfig_base_compileroptions_noemit",
+      "tsconfig_base_compileroptions_resolvejsonmodule",
+      "tsconfig_base_compileroptions_skiplibcheck",
+      "tsconfig_base_compileroptions_target",
+      "tsconfig_base_display",
+      "tsconfig_base_exclude",
+      "tsconfig_base_schema"
+    ],
+    "8": [
+      "package_scripts",
+      "package_scripts_android",
+      "package_scripts_fix_android",
+      "package_scripts_ios",
+      "package_scripts_mcp",
+      "package_scripts_migrate_watermelon",
+      "package_scripts_start",
+      "package_scripts_test",
+      "package_scripts_test_api",
+      "package_scripts_test_api_verbose",
+      "package_scripts_web"
+    ],
+    "9": [
+      "dbservices_drizzle_updatecarddifficulty",
+      "screens_statisticsscreen_statisticsscreenwrapper",
+      "scripts_init_db",
+      "scripts_init_db_database",
+      "scripts_init_db_db",
+      "scripts_init_db_destpath",
+      "scripts_init_db_fs",
+      "scripts_init_db_migrationsqlpath",
+      "scripts_init_db_path",
+      "scripts_init_db_sql"
+    ],
+    "10": [
+      "scripts_migrate_watermelon_to_drizzle",
+      "scripts_migrate_watermelon_to_drizzle_database",
+      "scripts_migrate_watermelon_to_drizzle_destdb",
+      "scripts_migrate_watermelon_to_drizzle_fs",
+      "scripts_migrate_watermelon_to_drizzle_migrationsql",
+      "scripts_migrate_watermelon_to_drizzle_path",
+      "scripts_migrate_watermelon_to_drizzle_srcdb",
+      "scripts_migrate_watermelon_to_drizzle_trycolumn",
+      "scripts_migrate_watermelon_to_drizzle_v4_uuidv4"
+    ],
+    "11": [
+      "test_api_connection",
+      "test_api_connection_colors",
+      "test_api_connection_exec",
+      "test_api_connection_getwindowsip",
+      "test_api_connection_http",
+      "test_api_connection_log",
+      "test_api_connection_main",
+      "test_api_connection_os",
+      "test_api_connection_testconnection"
+    ],
+    "12": [
+      "tsconfig",
+      "tsconfig_compileroptions",
+      "tsconfig_compileroptions_paths",
+      "tsconfig_compileroptions_strict",
+      "tsconfig_compileroptions_typeroots",
+      "tsconfig_exclude",
+      "tsconfig_extends",
+      "tsconfig_include",
+      "tsconfig_paths"
+    ],
+    "13": [
+      "src_screens_loginscreen_tsx_screens_loginscreen",
+      "src_screens_loginscreen_tsx_screens_loginscreen_loginscreen",
+      "src_screens_loginscreen_tsx_screens_loginscreen_styles",
+      "store_index",
+      "store_index_authstate",
+      "store_index_user",
+      "store_index_usestore"
+    ],
+    "14": [
+      "components_googlesignindiagnostic",
+      "components_googlesignindiagnostic_diagnosticstate",
+      "components_googlesignindiagnostic_googlesignindiagnostic",
+      "components_googlesignindiagnostic_styles"
+    ],
+    "15": [
+      "patch_content",
+      "patch_fs",
+      "patch_js_patch",
+      "patch_startindex"
+    ],
+    "16": [
+      "app_index",
+      "app_index_loginscreen",
+      "app_index_styles"
+    ],
+    "17": [
+      "fix",
+      "fix_c",
+      "fix_fs"
+    ],
+    "18": [
+      "fix3",
+      "fix3_content",
+      "fix3_fs"
+    ],
+    "19": [
+      "fix4",
+      "fix4_content",
+      "fix4_fs"
+    ],
+    "20": [
+      "fix_import",
+      "fix_import_content",
+      "fix_import_fs"
+    ],
+    "21": [
+      "fix_import_regex",
+      "fix_import_regex_content",
+      "fix_import_regex_fs"
+    ],
+    "22": [
+      "fix_parser",
+      "fix_parser_content",
+      "fix_parser_fs"
+    ],
+    "23": [
+      "metro_config",
+      "metro_config_config",
+      "metro_config_getdefaultconfig"
+    ],
+    "24": [
+      "services_exportservice",
+      "services_exportservice_exporttomarkdown"
+    ],
+    "25": [
+      "app_config"
+    ],
+    "26": [
+      "babel_config"
+    ],
+    "27": [
+      "config_api_setup_guide"
+    ],
+    "28": [
+      "drizzle_config"
+    ],
+    "29": [
+      "patch_py_patch"
+    ]
+  },
+  "cohesion": {
+    "0": 0.08819345661450925,
+    "1": 0.06060606060606061,
+    "2": 0.12615384615384614,
+    "3": 0.13,
+    "4": 0.08,
+    "5": 0.1422924901185771,
+    "6": 0.15441176470588236,
+    "7": 0.11764705882352941,
+    "8": 0.18181818181818182,
+    "9": 0.2,
+    "10": 0.2222222222222222,
+    "11": 0.3055555555555556,
+    "12": 0.2222222222222222,
+    "13": 0.38095238095238093,
+    "14": 0.5,
+    "15": 0.5,
+    "16": 0.6666666666666666,
+    "17": 0.6666666666666666,
+    "18": 0.6666666666666666,
+    "19": 0.6666666666666666,
+    "20": 0.6666666666666666,
+    "21": 0.6666666666666666,
+    "22": 0.6666666666666666,
+    "23": 1.0,
+    "24": 1.0,
+    "25": 1.0,
+    "26": 1.0,
+    "27": 1.0,
+    "28": 1.0,
+    "29": 1.0
+  },
+  "gods": [
+    {
+      "id": "tsconfig_base_compileroptions",
+      "label": "compilerOptions",
+      "degree": 13
+    },
+    {
+      "id": "db_index_db",
+      "label": "db",
+      "degree": 12
+    },
+    {
+      "id": "db_schema_sets",
+      "label": "sets",
+      "degree": 11
+    },
+    {
+      "id": "package_scripts",
+      "label": "scripts",
+      "degree": 11
+    },
+    {
+      "id": "context_appcontext_appcontext",
+      "label": "AppContext",
+      "degree": 11
+    },
+    {
+      "id": "db_schema_cards",
+      "label": "cards",
+      "degree": 7
+    },
+    {
+      "id": "dbservices_drizzle_buildcyclecards",
+      "label": "buildCycleCards()",
+      "degree": 5
+    },
+    {
+      "id": "scripts_init_db_sql",
+      "label": "sql",
+      "degree": 5
+    },
+    {
+      "id": "config_api_service_apifetch",
+      "label": "apiFetch()",
+      "degree": 5
+    },
+    {
+      "id": "store_usecicloconfigstore_usecicloconfigstore",
+      "label": "useCicloConfigStore",
+      "degree": 5
+    }
+  ],
+  "surprises": [
+    {
+      "source": "buildCycleCards()",
+      "target": "sql",
+      "source_files": [
+        "dbServices.drizzle.js",
+        "scripts/init_db.js"
+      ],
+      "confidence": "INFERRED",
+      "relation": "calls",
+      "why": "inferred connection - not explicitly stated in source; connects across different repos/directories; bridges separate communities"
+    },
+    {
+      "source": "DeckListScreenWrapper()",
+      "target": "sql",
+      "source_files": [
+        "src/screens/DeckListScreen.js",
+        "scripts/init_db.js"
+      ],
+      "confidence": "INFERRED",
+      "relation": "calls",
+      "why": "inferred connection - not explicitly stated in source; connects across different repos/directories; bridges separate communities"
+    },
+    {
+      "source": "updateCardDifficulty()",
+      "target": "sql",
+      "source_files": [
+        "dbServices.drizzle.js",
+        "scripts/init_db.js"
+      ],
+      "confidence": "INFERRED",
+      "relation": "calls",
+      "why": "inferred connection - not explicitly stated in source; connects across different repos/directories"
+    },
+    {
+      "source": "StatisticsScreenWrapper()",
+      "target": "sql",
+      "source_files": [
+        "src/screens/StatisticsScreen.js",
+        "scripts/init_db.js"
+      ],
+      "confidence": "INFERRED",
+      "relation": "calls",
+      "why": "inferred connection - not explicitly stated in source; connects across different repos/directories"
+    },
+    {
+      "source": "DeckCardItem()",
+      "target": "toggleCardImportant()",
+      "source_files": [
+        "src/screens/DeckDetailsScreen.js",
+        "dbServices.drizzle.js"
+      ],
+      "confidence": "EXTRACTED",
+      "relation": "calls",
+      "why": "connects across different repos/directories"
+    }
+  ],
+  "tokens": {
+    "input": 0,
+    "output": 0
+  }
+}

@@ -187,6 +187,7 @@ export const getStyles = (C) => StyleSheet.create({
   ddCard: { flex: 1, backgroundColor: C.card, borderRadius: 12, padding: 16, minHeight: 140, justifyContent: 'space-between', marginBottom: 12 },
   ddCardFront: { color: C.white, fontWeight: 'bold', fontSize: 16, marginBottom: 8 },
   ddCardBack: { color: C.gray, fontSize: 14 },
+  ddCardTag: { color: C.blue, fontSize: 11, fontWeight: '600', marginTop: 8, alignSelf: 'flex-start', backgroundColor: C.blue + '1A', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, overflow: 'hidden' },
   ddCardFooter: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 16, borderTopWidth: 1, borderTopColor: C.sep, paddingTop: 12 },
   ddCardIcon: { color: C.gray, fontSize: 18 },
   ddFooter: { position: 'absolute', bottom: 0, left: 0, right: 0, flexDirection: 'row', padding: 16, backgroundColor: C.bg, gap: 12, borderTopWidth: 1, borderTopColor: C.sep },

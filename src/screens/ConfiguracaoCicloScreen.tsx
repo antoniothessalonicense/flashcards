@@ -20,7 +20,7 @@ import { useCicloConfigStore, CICLO_DEFAULTS } from '../store/useCicloConfigStor
 import { saveCycleConfig, getCycleConfig, buildCycleCards } from '../../dbServices.drizzle';
 
 const ConfiguracaoCicloScreen: React.FC = () => {
-  const navigation = useNavigation();
+  const navigation = useNavigation<any>();
 
   // ── Estado global (Zustand) ──
   const config = useCicloConfigStore();
@@ -28,7 +28,8 @@ const ConfiguracaoCicloScreen: React.FC = () => {
   // ── Estado do Modal de resumo ──
   const [modalVisible, setModalVisible] = useState(false);
   const [setsModalVisible, setSetsModalVisible] = useState(false);
-  const [cicloResumo, setCicloResumo] = useState<{ atrasados: number; obrigatorios: number; erros: number; importantes: number; fixos: number; total: number } | null>(null);
+  const [helpModalVisible, setHelpModalVisible] = useState(false);
+  const [cicloResumo, setCicloResumo] = useState<{ atrasados: number; obrigatorios: number; erros: number; importantes: number; fixos: number; aleatorios: number; total: number } | null>(null);
   const [cicloCardIds, setCicloCardIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -76,6 +77,11 @@ const ConfiguracaoCicloScreen: React.FC = () => {
         qtdConjuntosFixosPorCiclo: config.qtdConjuntosFixosPorCiclo,
         cardsPorConjuntoFixo: config.cardsPorConjuntoFixo,
         conjuntosFixosSelecionados: config.conjuntosFixosSelecionados,
+        qtdConjuntosAleatorios: config.qtdConjuntosAleatorios,
+        cardsPorConjuntoAleatorio: config.cardsPorConjuntoAleatorio,
+        globalTagLimit: config.globalTagLimit,
+        surpriseTagsCount: config.surpriseTagsCount,
+        cardsPerSurpriseTag: config.cardsPerSurpriseTag,
       });
 
       Alert.alert('Sucesso', 'Configurações salvas com sucesso!');
@@ -101,6 +107,11 @@ const ConfiguracaoCicloScreen: React.FC = () => {
         qtdConjuntosFixosPorCiclo: config.qtdConjuntosFixosPorCiclo,
         cardsPorConjuntoFixo: config.cardsPorConjuntoFixo,
         conjuntosFixosSelecionados: config.conjuntosFixosSelecionados,
+        qtdConjuntosAleatorios: config.qtdConjuntosAleatorios,
+        cardsPorConjuntoAleatorio: config.cardsPorConjuntoAleatorio,
+        globalTagLimit: config.globalTagLimit,
+        surpriseTagsCount: config.surpriseTagsCount,
+        cardsPerSurpriseTag: config.cardsPerSurpriseTag,
       });
 
       // Monta o ciclo real
@@ -113,8 +124,13 @@ const ConfiguracaoCicloScreen: React.FC = () => {
         qtdConjuntosFixosPorCiclo: config.qtdConjuntosFixosPorCiclo,
         cardsPorConjuntoFixo: config.cardsPorConjuntoFixo,
         conjuntosFixosSelecionados: config.conjuntosFixosSelecionados,
+        qtdConjuntosAleatorios: config.qtdConjuntosAleatorios,
+        cardsPorConjuntoAleatorio: config.cardsPorConjuntoAleatorio,
         limiteAtivo: config.limiteAtivo,
         limiteDiarioTotal: config.limiteDiarioTotal,
+        globalTagLimit: config.globalTagLimit,
+        surpriseTagsCount: config.surpriseTagsCount,
+        cardsPerSurpriseTag: config.cardsPerSurpriseTag,
       });
 
       setCicloResumo(ciclo.resumo);
@@ -134,7 +150,7 @@ const ConfiguracaoCicloScreen: React.FC = () => {
       Alert.alert('Ciclo Vazio', 'Nenhum card foi selecionado para este ciclo.');
       return;
     }
-    navigation.navigate('Review' as never, { cycleCardIds: cicloCardIds } as never);
+    navigation.navigate('Review', { cycleCardIds: cicloCardIds });
   };
 
   const Counter = ({ value, setter }: { value: number, setter: (val: number) => void }) => (
@@ -142,9 +158,9 @@ const ConfiguracaoCicloScreen: React.FC = () => {
       <TouchableOpacity style={styles.counterBtn} onPress={() => setter(Math.max(0, value - 1))}>
         <Text style={styles.counterBtnText}>-</Text>
       </TouchableOpacity>
-      <TextInput 
-        style={styles.counterInput} 
-        value={value.toString()} 
+      <TextInput
+        style={styles.counterInput}
+        value={value.toString()}
         onChangeText={(text) => setter(Number(text) || 0)}
         keyboardType="numeric"
       />
@@ -156,9 +172,14 @@ const ConfiguracaoCicloScreen: React.FC = () => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <Text style={styles.screenTitle}>Configurações do Ciclo de Estudo</Text>
+      <View style={styles.header}>
+        <Text style={styles.screenTitle}>Configurações do Ciclo</Text>
+        <TouchableOpacity onPress={() => setHelpModalVisible(true)} style={styles.helpButton}>
+          <Text style={styles.helpButtonText}>?</Text>
+        </TouchableOpacity>
+      </View>
       <ScrollView contentContainerStyle={styles.scrollContent}>
-        
+
         {/* Limite Diário */}
         <View style={styles.card}>
           <View style={styles.cardHeader}>
@@ -174,10 +195,10 @@ const ConfiguracaoCicloScreen: React.FC = () => {
               value={config.limiteDiarioTotal.toString()}
               onChangeText={(text) => config.updateConfig({ limiteDiarioTotal: Number(text) || 0 })}
             />
-            <Switch 
-              value={config.limiteAtivo} 
-              onValueChange={(val) => config.updateConfig({ limiteAtivo: val })} 
-              trackColor={{ false: '#E0E0E0', true: '#B0BEC5' }} 
+            <Switch
+              value={config.limiteAtivo}
+              onValueChange={(val) => config.updateConfig({ limiteAtivo: val })}
+              trackColor={{ false: '#E0E0E0', true: '#B0BEC5' }}
               thumbColor={'#FFFFFF'}
             />
           </View>
@@ -197,16 +218,16 @@ const ConfiguracaoCicloScreen: React.FC = () => {
           <View style={styles.twoColumnRow}>
             <View style={styles.column}>
               <Text style={styles.columnLabel}>Quantidade de Conjuntos</Text>
-              <Counter 
-                value={config.qtdConjuntosAtrasados} 
-                setter={(val) => config.updateConfig({ qtdConjuntosAtrasados: val })} 
+              <Counter
+                value={config.qtdConjuntosAtrasados}
+                setter={(val) => config.updateConfig({ qtdConjuntosAtrasados: val })}
               />
             </View>
             <View style={styles.column}>
               <Text style={styles.columnLabel}>Cards por Conjunto</Text>
-              <Counter 
-                value={config.cardsPorConjuntoAtrasado} 
-                setter={(val) => config.updateConfig({ cardsPorConjuntoAtrasado: val })} 
+              <Counter
+                value={config.cardsPorConjuntoAtrasado}
+                setter={(val) => config.updateConfig({ cardsPorConjuntoAtrasado: val })}
               />
             </View>
           </View>
@@ -217,19 +238,19 @@ const ConfiguracaoCicloScreen: React.FC = () => {
           <View style={styles.cardHeader}>
             <View style={styles.cardHeaderLeft}>
               <Text style={styles.icon}>📋</Text>
-              <Text style={styles.cardTitle}>REVISÃO OBRIGATÓRIA (PROGRESSÃO KUMON)</Text>
+              <Text style={styles.cardTitle}>REVISÃO OBRIGATÓRIA (METODO PROGRESSIVO)</Text>
             </View>
             <Text style={styles.icon}>🎯</Text>
           </View>
           <Text style={styles.subtext}>Prioridade: Menor Índice (Ex: Conjunto 1 {'>'} Conjunto 2)</Text>
-          
+
           <View style={styles.cardRow}>
-            <View style={{flex: 1, marginRight: 16}}>
-               <Text style={[styles.columnLabel, {textAlign: 'left'}]}>Cards por Conjunto Obrigatório</Text>
-               <View style={styles.fakeSliderContainer}>
-                 <View style={styles.fakeSliderTrack} />
-                 <View style={styles.fakeSliderThumb} />
-               </View>
+            <View style={{ flex: 1, marginRight: 16 }}>
+              <Text style={[styles.columnLabel, { textAlign: 'left' }]}>Cards por Conjunto Obrigatório</Text>
+              <View style={styles.fakeSliderContainer}>
+                <View style={styles.fakeSliderTrack} />
+                <View style={styles.fakeSliderThumb} />
+              </View>
             </View>
             <TextInput
               style={styles.inputSmall}
@@ -282,33 +303,69 @@ const ConfiguracaoCicloScreen: React.FC = () => {
             <Text style={styles.icon}>🛠️</Text>
           </View>
           <Text style={styles.subtext}>Sempre selecione os conjuntos fixos mais atrasados</Text>
-          
+
           <View style={styles.cardRow}>
             <TouchableOpacity style={styles.selectButton} onPress={() => setSetsModalVisible(true)}>
               <Text style={styles.selectButtonText}>SELECIONAR CONJUNTOS</Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={() => setSetsModalVisible(true)}>
               <Text style={styles.linkText}>
-                {(config.conjuntosFixosSelecionados && config.conjuntosFixosSelecionados.length > 0) 
-                  ? `${config.conjuntosFixosSelecionados.length} Selecionados` 
+                {(config.conjuntosFixosSelecionados && config.conjuntosFixosSelecionados.length > 0)
+                  ? `${config.conjuntosFixosSelecionados.length} Selecionados`
                   : 'Ver Todos/Adicionar'}
               </Text>
             </TouchableOpacity>
           </View>
 
-          <View style={[styles.cardRow, {marginTop: 16}]}>
+          <View style={[styles.cardRow, { marginTop: 16 }]}>
             <Text style={styles.columnLabelLarge}>QUANTIDADE DE CONJUNTOS FIXOS POR CICLO</Text>
-            <Counter 
-              value={config.qtdConjuntosFixosPorCiclo} 
-              setter={(val) => config.updateConfig({ qtdConjuntosFixosPorCiclo: val })} 
+            <Counter
+              value={config.qtdConjuntosFixosPorCiclo}
+              setter={(val) => config.updateConfig({ qtdConjuntosFixosPorCiclo: val })}
             />
           </View>
-          
-          <View style={[styles.cardRow, {marginTop: 16}]}>
+
+          <View style={[styles.cardRow, { marginTop: 16 }]}>
             <Text style={styles.columnLabelLarge}>CARDS POR CONJUNTO FIXO</Text>
-            <Counter 
-              value={config.cardsPorConjuntoFixo} 
-              setter={(val) => config.updateConfig({ cardsPorConjuntoFixo: val })} 
+            <Counter
+              value={config.cardsPorConjuntoFixo}
+              setter={(val) => config.updateConfig({ cardsPorConjuntoFixo: val })}
+            />
+          </View>
+        </View>
+
+        {/* Ajuste de Tags / Surpresa */}
+        <View style={styles.card}>
+          <View style={styles.cardHeader}>
+            <View style={styles.cardHeaderLeft}>
+              <Text style={styles.icon}>🏷️</Text>
+              <Text style={styles.cardTitle}>AJUSTE GLOBAL DE TAGS & SURPRESA</Text>
+            </View>
+            <Text style={styles.icon}>✨</Text>
+          </View>
+          <Text style={styles.subtext}>Define limites para tags globais e puxa tags surpresa para prática intercalada.</Text>
+
+          <View style={styles.cardRow}>
+            <Text style={styles.columnLabelLarge}>LIMITE GLOBAL POR TAG (CARDS)</Text>
+            <Counter
+              value={config.globalTagLimit}
+              setter={(val) => config.updateConfig({ globalTagLimit: val })}
+            />
+          </View>
+
+          <View style={[styles.cardRow, { marginTop: 16 }]}>
+            <Text style={styles.columnLabelLarge}>QUANTIDADE DE TAGS SURPRESA</Text>
+            <Counter
+              value={config.surpriseTagsCount}
+              setter={(val) => config.updateConfig({ surpriseTagsCount: val })}
+            />
+          </View>
+
+          <View style={[styles.cardRow, { marginTop: 16 }]}>
+            <Text style={styles.columnLabelLarge}>CARDS POR TAG SURPRESA</Text>
+            <Counter
+              value={config.cardsPerSurpriseTag}
+              setter={(val) => config.updateConfig({ cardsPerSurpriseTag: val })}
             />
           </View>
         </View>
@@ -334,7 +391,7 @@ const ConfiguracaoCicloScreen: React.FC = () => {
         <View style={styles.modalOverlay}>
           <View style={styles.modalBox}>
             <Text style={styles.modalTitle}>📊 Ciclo de Estudo Montado</Text>
-            
+
             {cicloResumo && (
               <View style={styles.modalContent}>
                 <View style={styles.modalRow}>
@@ -349,9 +406,18 @@ const ConfiguracaoCicloScreen: React.FC = () => {
                 </View>
                 <View style={styles.modalRow}>
                   <Text style={styles.modalIcon}>❌</Text>
-                  <Text style={styles.modalLabel}>Erros Anteriores</Text>
-                  <Text style={styles.modalValue}>{cicloResumo.erros} cards</Text>
+                  <Text style={styles.modalCategoryLabel}>Erros Anteriores</Text>
+                  <Text style={styles.modalCategoryValue}>{cicloResumo.erros}</Text>
                 </View>
+                <View style={styles.modalCategoryRow}>
+                  <Text style={styles.modalCategoryLabel}>Fixos Selecionados</Text>
+                  <Text style={styles.modalCategoryValue}>{cicloResumo.fixos}</Text>
+                </View>
+                <View style={styles.modalCategoryRow}>
+                  <Text style={styles.modalCategoryLabel}>🎲 Tags Surpresa (Aleatórias)</Text>
+                  <Text style={styles.modalCategoryValue}>{cicloResumo.aleatorios}</Text>
+                </View>
+                <View style={styles.modalDivider} />
                 <View style={styles.modalRow}>
                   <Text style={styles.modalIcon}>❤️</Text>
                   <Text style={styles.modalLabel}>Cards Importantes</Text>
@@ -399,8 +465,8 @@ const ConfiguracaoCicloScreen: React.FC = () => {
               {allSets.map(set => {
                 const isSelected = (config.conjuntosFixosSelecionados || []).includes(set.id);
                 return (
-                  <TouchableOpacity 
-                    key={set.id} 
+                  <TouchableOpacity
+                    key={set.id}
                     style={styles.setSelectRow}
                     onPress={() => toggleSetSelection(set.id)}
                   >
@@ -422,6 +488,64 @@ const ConfiguracaoCicloScreen: React.FC = () => {
         </View>
       </Modal>
 
+      {/* Modal de Ajuda */}
+      <Modal visible={helpModalVisible} transparent animationType="fade" onRequestClose={() => setHelpModalVisible(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalBox, { maxHeight: '85%' }]}>
+            <Text style={styles.modalTitle}>Guia de Uso & Configuração</Text>
+            <ScrollView style={{ width: '100%' }}>
+
+              <Text style={styles.helpSubtitle}>O que é o Ciclo de Estudo?</Text>
+              <Text style={styles.helpText}>
+                O Ciclo de Estudo permite criar uma sessão personalizada, combinando as melhores técnicas de repetição espaçada. Em vez de estudar um conjunto por vez, você mistura tudo em um único treino dinâmico.
+              </Text>
+
+              <Text style={styles.helpSubtitle}>📚 Como Configurar as Categorias:</Text>
+              <Text style={styles.helpText}>
+                • <Text style={{ fontWeight: 'bold' }}>Conjuntos Atrasados:</Text> Foca no que o algoritmo entende que você está prestes a esquecer.{"\n"}
+                • <Text style={{ fontWeight: 'bold' }}>Revisão Obrigatória (Kumon):</Text> Progresso constante nos estudos atuais.{"\n"}
+                • <Text style={{ fontWeight: 'bold' }}>Erros Anteriores:</Text> Força a revisão de cards classificados como "Difíceis".{"\n"}
+                • <Text style={{ fontWeight: 'bold' }}>Conjuntos Fixos:</Text> Especifique manualmente conjuntos que você quer treinar todo dia.
+              </Text>
+
+              <Text style={styles.helpSubtitle}>🎲 O Poder da Aleatoriedade</Text>
+              <Text style={styles.helpText}>
+                A maioria dos apps de flashcards foca apenas no que está "atrasado". Ao usar a categoria <Text style={{ fontWeight: 'bold' }}>Cards Aleatórios</Text>, o app seleciona conjuntos e cards aleatórios que quebram o padrão repetitivo do cérebro, ativando a <Text style={{ fontStyle: 'italic' }}>Serendipidade</Text> e melhorando muito a retenção geral por associação surpresa!
+              </Text>
+
+              <Text style={styles.helpSubtitle}>🔁 Como Importar/Exportar</Text>
+              <Text style={styles.helpText}>
+                Para compartilhar ou fazer backup dos seus cards: Vá na tela inicial (lista de conjuntos), clique nos três pontos verticais (⋮) ao lado do conjunto desejado e escolha "Exportar". Você pode colar o texto exportado no menu "+" do app para importar.
+              </Text>
+
+              <Text style={styles.helpSubtitle}>🔇 Tag &lt;mudo&gt; — Silenciar Palavras no Áudio</Text>
+              <Text style={styles.helpText}>
+                Use a tag <Text style={{ fontWeight: 'bold' }}>&lt;mudo&gt;...&lt;/mudo&gt;</Text> para isolar palavras, emojis ou símbolos que você <Text style={{ fontWeight: 'bold' }}>não quer que sejam convertidos em voz</Text>. O texto dentro da tag ainda aparece normalmente no card, mas é completamente ignorado pelo leitor de áudio (TTS).{"\n\n"}
+                <Text style={{ fontWeight: 'bold' }}>Exemplo:</Text>{"\n"}
+                Qual o nome <Text style={{ fontWeight: 'bold' }}>&lt;mudo&gt;</Text>🇧🇷<Text style={{ fontWeight: 'bold' }}>&lt;/mudo&gt;</Text> do Brasil?{"\n"}
+                → O áudio dirá: "Qual o nome do Brasil?" (o emoji 🇧🇷 é ignorado).{"\n\n"}
+                <Text style={{ fontWeight: 'bold' }}>Outro exemplo:</Text>{"\n"}
+                A fórmula é <Text style={{ fontWeight: 'bold' }}>&lt;mudo&gt;</Text>E=mc²<Text style={{ fontWeight: 'bold' }}>&lt;/mudo&gt;</Text> segundo Einstein.{"\n"}
+                → O áudio dirá: "A fórmula é segundo Einstein." (a fórmula é pulada).{"\n\n"}
+                <Text style={{ fontWeight: 'bold' }}>Dica:</Text> Ideal para emojis, fórmulas, códigos e símbolos que soariam estranhos quando lidos em voz alta.
+              </Text>
+
+              <Text style={styles.helpSubtitle}>🗣️ Tag &lt;en&gt; — Pronúncia em Inglês</Text>
+              <Text style={styles.helpText}>
+                Use a tag <Text style={{ fontWeight: 'bold' }}>&lt;en&gt;...&lt;/en&gt;</Text> para que o trecho dentro dela seja lido com pronúncia em inglês, mesmo que o card esteja em português.{"\n\n"}
+                <Text style={{ fontWeight: 'bold' }}>Exemplo:</Text>{"\n"}
+                O que é um <Text style={{ fontWeight: 'bold' }}>&lt;en&gt;</Text>array<Text style={{ fontWeight: 'bold' }}>&lt;/en&gt;</Text>?{"\n"}
+                → "O que é um" é lido em português, "array" é lido em inglês.
+              </Text>
+
+            </ScrollView>
+            <TouchableOpacity style={[styles.modalStudyButton, { marginTop: 16 }]} onPress={() => setHelpModalVisible(false)}>
+              <Text style={styles.modalStudyButtonText}>Entendi</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
     </SafeAreaView>
   );
 };
@@ -431,16 +555,35 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F0F4F8',
   },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 10,
+  },
   screenTitle: {
-    fontSize: 20,
+    fontSize: 24,
     fontWeight: 'bold',
-    textAlign: 'center',
-    marginVertical: 16,
-    color: '#000',
+    color: '#2C3E50',
+  },
+  helpButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#007BFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  helpButtonText: {
+    color: '#FFF',
+    fontSize: 18,
+    fontWeight: 'bold',
   },
   scrollContent: {
     paddingHorizontal: 16,
-    paddingBottom: 140, 
+    paddingBottom: 140,
   },
   sectionTitle: {
     fontSize: 13,
@@ -670,6 +813,20 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#F0F0F0',
   },
+  modalCategoryRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: 6,
+  },
+  modalCategoryLabel: {
+    fontSize: 14,
+    color: '#555',
+  },
+  modalCategoryValue: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#648CB4',
+  },
   modalIcon: {
     fontSize: 16,
     marginRight: 10,
@@ -772,6 +929,39 @@ const styles = StyleSheet.create({
     color: '#888',
     marginTop: 20,
     fontSize: 14,
+  },
+  helpSubtitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#2C3E50',
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  helpText: {
+    fontSize: 15,
+    color: '#555',
+    lineHeight: 22,
+  },
+  tagChip: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#D1D9E0',
+    backgroundColor: '#FFFFFF',
+    marginRight: 8,
+  },
+  tagChipSelected: {
+    backgroundColor: '#4CAF50',
+    borderColor: '#4CAF50',
+  },
+  tagChipText: {
+    color: '#333',
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  tagChipTextSelected: {
+    color: '#FFF',
   },
 });
 

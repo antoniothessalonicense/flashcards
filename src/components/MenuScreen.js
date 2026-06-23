@@ -6,6 +6,7 @@ import { Badge } from './Shared';
 export const MENU_ITEMS = [
   { icon: '🏠', label: 'Início', id: 'list' },
   { icon: '📚', label: 'Meus Conjuntos', id: 'list' },
+  { icon: '⏱️', label: 'Cronômetro', id: 'stopwatch_config' },
   { icon: '📊', label: 'Estatísticas', id: 'statistics' },
   { icon: '🔔', label: 'Notificações', id: 'notifications' },
   { icon: '📥', label: 'Importar', id: 'import' },
@@ -13,6 +14,7 @@ export const MENU_ITEMS = [
   { icon: '☁️', label: 'Backup no Google Docs', id: 'backup_docs' },
   null,
   { icon: '⚙️', label: 'Configurações', id: 'settings' },
+  { icon: 'Aa', label: 'Tamanho do Texto', id: 'text_size' },
   { icon: '🌙', label: 'Alternar para o Tema Noturno', special: true },
   { icon: '❓', label: 'Ajuda', id: 'help' },
   { icon: '📧', label: 'Contato', id: 'contact' },
@@ -27,7 +29,7 @@ export default function MenuScreen({ visible, onClose, onMenuItemPress, isDark, 
           <LinearGradient colors={['#009688', '#4CAF50', '#607D8B']} style={styles.menuHeader}>
             <View style={styles.avatar}><Text style={[styles.avatarText, { color: C.white }]}>A</Text></View>
             <View style={{ marginTop: 6 }}><Badge color={C.blue} theme={theme}>PRO</Badge></View>
-            <Text style={[styles.menuName, { color: C.white }]}>Anton</Text>
+            <Text style={[styles.menuName, { color: C.white }]}>Antonio Thessalonicense M Monteiro</Text>
             <Text style={styles.menuEmail}>antoniomartinsbr@gmail.com</Text>
           </LinearGradient>
           <ScrollView>

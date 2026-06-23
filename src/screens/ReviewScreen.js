@@ -4,7 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import * as Speech from 'expo-speech';
 import { useLiveQuery } from 'drizzle-orm/expo-sqlite';
-import { eq, lte, or, asc } from 'drizzle-orm';
+import { eq, lte, or, asc, inArray } from 'drizzle-orm';
 import { ProgressBar } from '../components/Shared';
 import LottieView from 'lottie-react-native';
 import { AppContext } from '../context/AppContext';
@@ -14,14 +14,18 @@ import { updateCardDifficulty, toggleCardImportant } from '../../dbServices.driz
 
 const formatTextForDisplay = (text) => {
   if (!text) return '';
-  return text.replace(/<\/?en>/ig, '');
+  return text.replace(/<\/?en>/ig, '').replace(/<\/?mudo>/ig, '');
 };
 
 const playMixedTTS = (text, baseLang, preferredVoices, overrideVoice = null) => {
   if (!text) return;
-  const parts = text.split(/(<en>.*?<\/en>)/ig);
+  const parts = text.split(/(<en>.*?<\/en>|<mudo>.*?<\/mudo>)/ig);
   for (const p of parts) {
     if (!p) continue;
+    // Tag <mudo>: conteúdo é completamente ignorado pelo TTS
+    if (p.toLowerCase().startsWith('<mudo>') && p.toLowerCase().endsWith('</mudo>')) {
+      continue;
+    }
     if (p.toLowerCase().startsWith('<en>') && p.toLowerCase().endsWith('</en>')) {
       const enText = p.replace(/<\/?en>/ig, '').trim();
       if (enText) {
@@ -48,7 +52,8 @@ export function ReviewScreenComponent({ deck, cards = [], isAllMode = false }) {
     cardsReviewedToday, dailyGoal, 
     autoPlayAudio, cardFontSize, 
     preferredVoices, handleSetPreferredVoice,
-    incrementDailyReview
+    incrementDailyReview,
+    showStopwatch
   } = useContext(AppContext);
   
   // ── Lendo o Estado Global (Zustand) ──
@@ -70,6 +75,29 @@ export function ReviewScreenComponent({ deck, cards = [], isAllMode = false }) {
   const [favorited, setFavorited] = useState(cards[0]?.isImportant === 1);
   const [lottieAnim, setLottieAnim] = useState(null);
   const [availableVoices, setAvailableVoices] = useState([]);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+
+  useEffect(() => {
+    let interval = null;
+    if (cards.length > 0 && index < cards.length) {
+      interval = setInterval(() => {
+        setElapsedSeconds(prev => prev + 1);
+      }, 1000);
+    } else if (index >= cards.length) {
+      clearInterval(interval);
+    }
+    return () => clearInterval(interval);
+  }, [index, cards.length]);
+
+  const formatTime = (totalSeconds) => {
+    const m = Math.floor(totalSeconds / 60).toString().padStart(2, '0');
+    const s = (totalSeconds % 60).toString().padStart(2, '0');
+    const h = Math.floor(totalSeconds / 3600);
+    if (h > 0) {
+      return `${h}:${m}:${s}`;
+    }
+    return `${m}:${s}`;
+  };
 
   const onClose = () => navigation.goBack();
   const onRateCard = async (cardId, difficulty) => {
@@ -96,15 +124,21 @@ export function ReviewScreenComponent({ deck, cards = [], isAllMode = false }) {
   useEffect(() => {
     if (autoPlayAudio && cards[index]) {
       Speech.stop();
-      const currentLang = flipped ? (deck?.backLanguage || 'en-US') : (deck?.frontLanguage || 'pt-BR');
-      const textToSpeak = flipped ? cards[index].back : cards[index].front;
+      const currentCard = cards[index];
+      const currentLang = flipped
+        ? (currentCard?.backLanguage || deck?.backLanguage || 'en-US')
+        : (currentCard?.frontLanguage || deck?.frontLanguage || 'pt-BR');
+      const textToSpeak = flipped ? currentCard.back : currentCard.front;
       playMixedTTS(textToSpeak, currentLang, preferredVoices);
     }
   }, [index, flipped, autoPlayAudio, cards, deck, preferredVoices]);
 
   const changeVoice = () => {
-    const currentLang = flipped ? (deck?.backLanguage || 'en-US') : (deck?.frontLanguage || 'pt-BR');
-    const textToSpeak = flipped ? cards[index].back : cards[index].front;
+    const currentCard = cards[index];
+    const currentLang = flipped
+      ? (currentCard?.backLanguage || deck?.backLanguage || 'en-US')
+      : (currentCard?.frontLanguage || deck?.frontLanguage || 'pt-BR');
+    const textToSpeak = flipped ? currentCard.back : currentCard.front;
     
     let voicesForLang = availableVoices.filter(v => v.language === currentLang);
     if (voicesForLang.length === 0) {
@@ -188,7 +222,7 @@ export function ReviewScreenComponent({ deck, cards = [], isAllMode = false }) {
             <Text style={[styles.backBtnText, { color: C.white }]}>Voltar</Text>
           </TouchableOpacity>
           <TouchableOpacity style={[styles.doneActionBtn, { backgroundColor: '#FF9800' }]} onPress={() => {
-            setIndex(0); setRatings({ hard: 0, good: 0, easy: 0 }); setFlipped(false);
+            setIndex(0); setRatings({ hard: 0, good: 0, easy: 0 }); setFlipped(false); setElapsedSeconds(0);
           }}>
             <Text style={[styles.backBtnText, { color: C.white }]}>Repetir</Text>
           </TouchableOpacity>
@@ -210,6 +244,12 @@ export function ReviewScreenComponent({ deck, cards = [], isAllMode = false }) {
           <ProgressBar value={progress} color={C.blue} theme={theme} />
         </View>
         <Text style={[styles.progressText, { color: C.gray }]}>{index} / {cards.length}</Text>
+        {showStopwatch && (
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginLeft: 8, backgroundColor: C.cardBtnBg, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12 }}>
+            <Text style={{ fontSize: 12, marginRight: 4 }}>⏱️</Text>
+            <Text style={{ color: C.white, fontSize: 14, fontWeight: 'bold' }}>{formatTime(elapsedSeconds)}</Text>
+          </View>
+        )}
       </View>
 
       <View style={{ alignItems: 'center', paddingBottom: 8 }}>
@@ -223,7 +263,9 @@ export function ReviewScreenComponent({ deck, cards = [], isAllMode = false }) {
         </TouchableOpacity>
         <TouchableOpacity style={styles.audioBtn} onPress={() => {
           Speech.stop();
-          const currentLang = flipped ? (deck?.backLanguage || 'en-US') : (deck?.frontLanguage || 'pt-BR');
+          const currentLang = flipped
+            ? (card?.backLanguage || deck?.backLanguage || 'en-US')
+            : (card?.frontLanguage || deck?.frontLanguage || 'pt-BR');
           const textToSpeak = flipped ? card.back : card.front;
           playMixedTTS(textToSpeak, currentLang, preferredVoices);
         }}>
@@ -283,8 +325,22 @@ export default function ReviewScreen() {
     if (cycleCardIds && cycleCardIds.length > 0) {
       const fetchCycleCards = async () => {
         try {
-          const { inArray } = require('drizzle-orm');
-          const cycleCards = await db.select().from(cards).where(inArray(cards.id, cycleCardIds)).all();
+          const cycleCards = await db.select({
+            id: cards.id,
+            set_id: cards.set_id,
+            front: cards.front,
+            back: cards.back,
+            next_review_date: cards.next_review_date,
+            ease_factor: cards.ease_factor,
+            difficultyStatus: cards.difficultyStatus,
+            isImportant: cards.isImportant,
+            tag: cards.tag,
+            frontLanguage: sets.frontLanguage,
+            backLanguage: sets.backLanguage,
+          }).from(cards)
+            .innerJoin(sets, eq(cards.set_id, sets.id))
+            .where(inArray(cards.id, cycleCardIds))
+            .all();
           // Mantém a ordem original dos IDs
           const orderMap = new Map(cycleCardIds.map((id, idx) => [id, idx]));
           cycleCards.sort((a, b) => (orderMap.get(a.id) || 0) - (orderMap.get(b.id) || 0));

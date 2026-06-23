@@ -95,3 +95,53 @@
 ### [12/06/2026] - Erro de sintaxe (Expected corresponding JSX closing tag) no React Native
 * **Causa:** Durante a inserção de um componente `<Modal>` e alteração da estrutura da tela (`ConfiguracaoCicloScreen.tsx`), uma tag `</View>` de fechamento extra foi deixada no JSX por descuido durante a substituição em lote. O parser do React Native (Metro Bundler) acusa erro imediato de fechamento de tag não correspondente.
 * **Solução:** Remover a tag `</View>` duplicada que não possuía uma `<View>` de abertura correspondente. Identifiquei visualmente a linha do erro no terminal (ex: `391:8`) e removi a tag extra.
+
+### [12/06/2026] - Erro: Cannot redeclare block-scoped variable 'nomeDaVariavel' no JavaScript
+* **Causa:** Variáveis declaradas com `const` ou `let` não podem ser declaradas novamente no mesmo escopo (mesmo bloco de código/função). O erro ocorreu no arquivo `dbServices.drizzle.js` porque as variáveis `idsCardsJaSelecionados` e `idsAtrasadosSet` foram inicializadas no topo da função `buildCycleCards` com `const` e depois re-declaradas com `const` mais abaixo na mesma função durante a migração do código.
+* **Solução:** Remover a declaração redundante no início da função (ou transformá-las em reatribuição se fossem `let`), mantendo apenas a declaração original no meio do arquivo, já que não eram necessárias antes daquele ponto.
+
+### [15/06/2026] - Unable to resolve "@expo/vector-icons"
+* **Causa:** O pacote `@expo/vector-icons` foi importado em um componente (como a `HomeScreen`), mas não constava nas dependências (`package.json`) do projeto atual.
+* **Solução:** Instalar o pacote executando `npx expo install @expo/vector-icons`.
+
+### [15/06/2026] - Argument of type '[never, never]' is not assignable to parameter of type 'never'
+* **Causa:** Ocorre no TypeScript quando um array (geralmente em um `useState`) é inicializado vazio (`[]`) sem tipagem explícita. O TS infere o tipo como `never[]`. Ao tentar atualizar o estado inserindo um tuple (ex: `[id, valor]`), o compilador rejeita pois a variável não aceita nada além de `never`.
+* **Solução:** Adicionar o tipo genérico explícito na declaração do hook ou variável. Exemplo: `const [meuEstado, setMeuEstado] = useState<[number, number][]>([]);` (ajustando os tipos internos conforme a necessidade).
+
+### [18/06/2026] - Unable to resolve "expo-sharing"
+* **Causa:** O pacote `expo-sharing` foi importado em um componente (como o `DeckListScreen.js` na nova funcionalidade de exportação), mas a biblioteca não estava instalada no `node_modules` nem constava como dependência no `package.json`. O Metro Bundler acusa o erro de resolução imediatamente.
+* **Solução:** Parar o servidor do Metro (se necessário) e instalar a dependência oficial usando o comando `npx expo install expo-sharing`.
+
+### [18/06/2026] - TTS com vozes invertidas no modo Ciclo de Estudo
+* **Categoria:** TTS / Speech / Ciclo
+* **Causa:** Ao iniciar o modo Ciclo, o `ReviewScreen` recebia um objeto `deck` stub `{ title: 'Ciclo de Estudo' }` sem as propriedades `frontLanguage`/`backLanguage`. O TTS fazia fallback para defaults hardcoded (`pt-BR` frente, `en-US` trás), que são o oposto da configuração real do conjunto do usuário (ex: `en-US` frente, `pt-BR` trás). No modo Prática individual, o deck real é carregado do banco com as linguagens corretas, por isso funcionava.
+* **Solução:** Ao buscar os cards do ciclo (`fetchCycleCards`), fazer `innerJoin` com a tabela `sets` para trazer `frontLanguage` e `backLanguage` por card. Em todos os pontos de TTS do `ReviewScreen` (auto-play, botão 🔊, troca de voz), priorizar a linguagem individual do card (`card.frontLanguage`/`card.backLanguage`) antes do fallback para `deck.frontLanguage`/`deck.backLanguage`.
+* **Palavras-chave:** TTS, Speech, voz invertida, ciclo, frontLanguage, backLanguage, playMixedTTS, ReviewScreen, innerJoin
+
+### [19/06/2026] - Erro EBUSY ao instalar skills do Expo (npx skills add)
+* **Categoria:** Ambiente / Instalação
+* **Causa:** Durante a execução de `npx skills add expo/skills`, ocorreu a falha `EBUSY: resource busy or locked` ao tentar substituir/remover arquivos (ex: `expo-router-loaders.md`). Isso ocorre porque outro processo (como a própria IDE, um indexador ou antivírus) está acessando e bloqueando o arquivo localmente, impedindo a CLI de substituí-lo.
+* **Solução:** Fechar os arquivos se estiverem abertos na IDE, aguardar alguns segundos para que o processo solte o lock, ou reiniciar o editor/terminal, e então rodar novamente o comando de instalação.
+* **Palavras-chave:** EBUSY, resource busy or locked, npx skills add, unlink, lock
+
+### [19/06/2026] - Erro de conexão (Network response timed out / Could not connect) ao abrir APK de desenvolvimento
+* **Categoria:** Conectividade / Dev Client
+* **Causa:** O aplicativo tenta se conectar ao Metro Bundler local na porta `8081` através do IP da rede local. A causa quase absoluta no Windows para aparelhos físicos é o Firewall: a rede Wi-Fi está configurada como "Pública" e o Windows bloqueia conexões externas na porta 8081. Outra causa é o PC e celular estarem em Wi-Fis/bandas diferentes (ex: 2.4Ghz vs 5Ghz em roteadores isolados).
+* **Solução:** 
+  1. Certifique-se de que PC e Android estão na mesma rede Wi-Fi.
+  2. No Windows, mude o tipo da rede Wi-Fi para **Privada** (Configurações > Rede e Internet > Wi-Fi > Propriedades da rede > "Privada").
+  3. No app Development Client, em vez de escanear o QR Code, você pode digitar manualmente `http://<SEU_IP_AQUI>:8081`.
+  4. (Opcional) No terminal execute `npx expo start --localhost` e use cabo USB com `adb reverse tcp:8081 tcp:8081`.
+* **Palavras-chave:** Network response timed out, npx expo start, dev client, firewall, conexão, apk, porta 8081
+
+### [19/06/2026] - Erro: cannot find native module 'expoSharing' (ou outro módulo nativo)
+* **Categoria:** Build Nativo / Dev Client
+* **Causa:** O pacote `expo-sharing` (ou outro módulo nativo) foi instalado no `package.json` e está sendo requisitado pelo código JavaScript. No entanto, você está tentando rodar o app usando um APK de desenvolvimento antigo que foi compilado *antes* da adição desse pacote. O Metro entrega o JS novo, mas o binário do app no celular não contém o código nativo (Java/Kotlin) da biblioteca para processar a função.
+* **Solução:** Você precisa gerar um novo Development Build na nuvem contendo as novas bibliotecas. Como não usamos a pasta `/android` local, interrompa o servidor e rode `eas build --profile development --platform android`. Ao final, baixe e instale o novo APK gerado no seu celular por cima do antigo.
+* **Palavras-chave:** runtime not ready, cannot find native module, expoSharing, apk desatualizado, build nativo, eas build
+
+### [22/06/2026] - Falha ao tentar importar um arquivo TXT contendo imagens (Cards com imagem)
+* **Categoria:** Importação / Sistema de Arquivos
+* **Causa:** Arquivos `.txt` (Plain Text / Texto Puro) **não suportam** o armazenamento de mídia embutida (como imagens, áudios ou vídeos) por definição tecnológica do formato. Se o usuário tentar copiar e colar uma imagem para um Bloco de Notas, ou salvar um documento Word (.docx/.rtf) forçadamente como .txt, os dados binários da imagem são destruídos ou o arquivo se torna ilegível para o parser do aplicativo, resultando em erro ou descarte da imagem durante a importação.
+* **Solução:** É impossível usar `.txt` para imagens. A solução requer alterar a arquitetura do aplicativo para suportar formatos que embutem mídia (como importação de arquivos `.zip`, `.apkg` do Anki, ou JSON contendo imagens codificadas em Base64).
+* **Palavras-chave:** txt, imagem, importação, fotos em cards, plain text, Base64, apkg

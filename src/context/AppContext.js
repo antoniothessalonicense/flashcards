@@ -20,6 +20,7 @@ export const AppProvider = ({ children }) => {
   const [autoPlayAudio, setAutoPlayAudio] = useState(false);
   const [cardFontSize, setCardFontSize] = useState(24);
   const [preferredVoices, setPreferredVoices] = useState({});
+  const [showStopwatch, setShowStopwatchState] = useState(true);
 
   const calculateTargetDecks = async () => {
     try {
@@ -67,6 +68,7 @@ export const AppProvider = ({ children }) => {
         const savedAutoPlay = await AsyncStorage.getItem('autoPlayAudio');
         const savedFontSize = await AsyncStorage.getItem('cardFontSize');
         const savedVoices = await AsyncStorage.getItem('preferredVoices');
+        const savedStopwatch = await AsyncStorage.getItem('showStopwatch');
         
         if (savedAutoPlay !== null) setAutoPlayAudio(savedAutoPlay === 'true');
         if (savedGoal) setDailyGoal(parseInt(savedGoal, 10));
@@ -83,6 +85,9 @@ export const AppProvider = ({ children }) => {
         
         if (savedVoices) {
           setPreferredVoices(JSON.parse(savedVoices));
+        }
+        if (savedStopwatch !== null) {
+          setShowStopwatchState(savedStopwatch === 'true');
         }
       } catch (e) {
         console.log("Erro ao carregar progresso:", e);
@@ -124,6 +129,11 @@ export const AppProvider = ({ children }) => {
     await AsyncStorage.setItem('autoPlayAudio', value.toString());
   };
 
+  const setShowStopwatch = async (value) => {
+    setShowStopwatchState(value);
+    await AsyncStorage.setItem('showStopwatch', value.toString());
+  };
+
   return (
     <AppContext.Provider value={{
       user, setUser,
@@ -134,7 +144,8 @@ export const AppProvider = ({ children }) => {
       targetReviewDecks, calculateTargetDecks,
       autoPlayAudio, setAutoPlayAudio, handleSetAutoPlayAudio,
       cardFontSize, setCardFontSize,
-      preferredVoices, handleSetPreferredVoice
+      preferredVoices, handleSetPreferredVoice,
+      showStopwatch, setShowStopwatch
     }}>
       {children}
     </AppContext.Provider>
