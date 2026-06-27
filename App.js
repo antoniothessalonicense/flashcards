@@ -38,6 +38,7 @@ const initializeDatabase = async (db) => {
         backLanguage TEXT DEFAULT 'en-US',
         next_review_date INTEGER DEFAULT 0,
         totalReviews INTEGER DEFAULT 0,
+        priority INTEGER NOT NULL DEFAULT 0,
         created_at TEXT DEFAULT CURRENT_TIMESTAMP
       );
     `);
@@ -87,6 +88,10 @@ const initializeDatabase = async (db) => {
     }
     if (!setsColumns.includes('totalReviews')) {
       await db.execAsync("ALTER TABLE sets ADD COLUMN totalReviews INTEGER DEFAULT 0;");
+    }
+    if (!setsColumns.includes('priority')) {
+      await db.execAsync("ALTER TABLE sets ADD COLUMN priority INTEGER NOT NULL DEFAULT 0;");
+      console.log("Migração: Coluna priority adicionada!");
     }
 
     const cardsInfo = await db.getAllAsync("PRAGMA table_info('cards');");

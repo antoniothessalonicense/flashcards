@@ -1,4 +1,4 @@
-import React, { useState, useContext } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import { View, Text, TouchableOpacity, FlatList, Modal, TextInput, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Speech from 'expo-speech';
@@ -82,6 +82,8 @@ function DeckDetailsScreenContent({ deck, deckCards = [] }) {
   const [cardFront, setCardFront] = useState('');
   const [cardBack, setCardBack] = useState('');
   const [cardTag, setCardTag] = useState('');
+  const [priority, setPriority] = useState(deck.priority || 0);
+  const [priorityModalVisible, setPriorityModalVisible] = useState(false);
 
   const [cardMenuAtivo, setCardMenuAtivo] = useState(null);
   const [editCardModal, setEditCardModal] = useState(false);
@@ -92,6 +94,18 @@ function DeckDetailsScreenContent({ deck, deckCards = [] }) {
 
   const onBack = () => navigation.goBack();
   const onPractice = () => navigation.navigate('Practice', { deckId: deck.id });
+
+  useEffect(() => {
+    setPriority(deck.priority || 0);
+  }, [deck.priority]);
+
+  const onUpdateDeckPriority = async (deckId, newPriority) => {
+    try {
+      await db.update(sets).set({ priority: newPriority }).where(eq(sets.id, deckId)).returning();
+    } catch (e) {
+      console.error('Erro ao atualizar prioridade do conjunto:', e);
+    }
+  };
 
   const onAddCard = async (deckId, front, back, tag) => {
     try {
@@ -139,13 +153,27 @@ function DeckDetailsScreenContent({ deck, deckCards = [] }) {
         <View style={styles.ddHeaderTop}>
           <TouchableOpacity onPress={onBack} style={styles.hBtn}><Text style={styles.hIcon}>←</Text></TouchableOpacity>
           <View style={styles.ddHeaderIcons}>
+            <TouchableOpacity style={styles.hBtn} onPress={() => setPriorityModalVisible(true)}><Text style={styles.hIcon}>⚙️</Text></TouchableOpacity>
             <TouchableOpacity style={styles.hBtn}><Text style={styles.hIcon}>🔍</Text></TouchableOpacity>
-            <TouchableOpacity style={styles.hBtn}><Text style={styles.hIcon}>☰</Text></TouchableOpacity>
             <TouchableOpacity style={styles.hBtn}><Text style={styles.hIcon}>⋮</Text></TouchableOpacity>
           </View>
         </View>
         <View style={styles.ddTabs}>
           <View style={styles.ddTabActive}><Text style={styles.ddTabText}>Todos: {deckCards.length}</Text></View>
+        </View>
+      </View>
+
+      <View style={{ paddingHorizontal: 20, marginBottom: 16, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+        <View>
+          <Text style={{ color: '#FFFFFF', fontSize: 16, fontWeight: '700' }}>{deck.title}</Text>
+          <Text style={{ color: '#BBBBBB', fontSize: 12, marginBottom: 8 }}>Prioridade atual: {priority}</Text>
+          <TouchableOpacity onPress={() => setPriorityModalVisible(true)} style={{ alignSelf: 'flex-start', backgroundColor: '#3B9EFF', paddingVertical: 8, paddingHorizontal: 14, borderRadius: 20 }}>
+            <Text style={{ color: '#FFFFFF', fontWeight: '700', fontSize: 13 }}>Editar prioridade</Text>
+          </TouchableOpacity>
+        </View>
+        <View style={{ alignItems: 'flex-end' }}>
+          <Text style={{ color: '#BBBBBB', fontSize: 12 }}>Tipo de priorização</Text>
+          <Text style={{ color: '#FFFFFF', fontSize: 12 }}>Maior valor = mais prioridade</Text>
         </View>
       </View>
 
@@ -182,6 +210,33 @@ function DeckDetailsScreenContent({ deck, deckCards = [] }) {
               <TouchableOpacity onPress={handleCloseModal}><Text style={styles.wsModalCancel}>Cancelar</Text></TouchableOpacity>
               <TouchableOpacity onPress={handleAdd}><View style={styles.wsModalConfirm}><Text style={styles.wsModalConfirmText}>Adicionar +</Text></View></TouchableOpacity>
               <TouchableOpacity onPress={handleFinish}><View style={[styles.wsModalConfirm, { backgroundColor: '#4CAF50' }]}><Text style={styles.wsModalConfirmText}>Concluir</Text></View></TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal visible={priorityModalVisible} transparent animationType="fade" onRequestClose={() => setPriorityModalVisible(false)}>
+        <View style={styles.wsModalOverlay}>
+          <View style={styles.wsModalBox}>
+            <Text style={styles.wsModalTitle}>Prioridade do Conjunto</Text>
+            <TextInput
+              style={styles.wsInput}
+              placeholder="Valor da prioridade"
+              placeholderTextColor="#666"
+              keyboardType="numeric"
+              value={priority.toString()}
+              onChangeText={(text) => setPriority(Number(text) || 0)}
+            />
+            <View style={styles.wsModalActions}>
+              <TouchableOpacity onPress={() => setPriorityModalVisible(false)}>
+                <Text style={styles.wsModalCancel}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={async () => {
+                  await onUpdateDeckPriority(deck.id, priority);
+                  setPriorityModalVisible(false);
+                }}>
+                <View style={styles.wsModalConfirm}><Text style={styles.wsModalConfirmText}>Salvar</Text></View>
+              </TouchableOpacity>
             </View>
           </View>
         </View>

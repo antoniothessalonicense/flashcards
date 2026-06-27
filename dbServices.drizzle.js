@@ -16,9 +16,10 @@ export async function createDeck(title, description = '', frontLanguage = 'pt-BR
     backLanguage,
     next_review_date: 0,
     totalReviews: 0,
+    priority: 0,
   });
   const rows = await db.select().from(sets).where(eq(sets.id, id));
-  return rows[0] || { id, title, description, frontLanguage, backLanguage, next_review_date: 0, totalReviews: 0 };
+  return rows[0] || { id, title, description, frontLanguage, backLanguage, next_review_date: 0, totalReviews: 0, priority: 0 };
 }
 
 export async function updateDeck(deckId, title, description, frontLanguage, backLanguage) {
@@ -156,7 +157,7 @@ export async function buildCycleCards(config) {
   const setsAtrasados = await db.select()
     .from(sets)
     .where(sql`${sets.next_review_date} <= ${now}`)
-    .orderBy(sql`${sets.next_review_date} ASC`)
+    .orderBy(sql`${sets.priority} ASC`, sql`${sets.next_review_date} ASC`)
     .limit(config.qtdConjuntosAtrasados);
 
   for (const s of setsAtrasados) {
@@ -200,11 +201,17 @@ export async function buildCycleCards(config) {
     setId: cards.set_id,
     total: sql`count(${cards.id})`.mapWith(Number),
     memorized: sql`sum(CASE WHEN ${cards.difficultyStatus} IN ('good', 'easy') THEN 1 ELSE 0 END)`.mapWith(Number),
-  }).from(cards).groupBy(cards.set_id);
+    priority: sets.priority,
+  }).from(cards)
+    .leftJoin(sets, eq(cards.set_id, sets.id))
+    .groupBy(cards.set_id, sets.priority);
 
   const setsOrdenados = statsAll
-    .map(s => ({ ...s, pct: s.total > 0 ? (s.memorized || 0) / s.total : 0 }))
-    .sort((a, b) => a.pct - b.pct);
+    .map(s => ({ ...s, pct: s.total > 0 ? (s.memorized || 0) / s.total : 0, priority: s.priority || 0 }))
+    .sort((a, b) => {
+      if (a.pct === b.pct) return (a.priority || 0) - (b.priority || 0);
+      return a.pct - b.pct;
+    });
 
   let obrigatoriosRestantes = config.cardsPorConjuntoObrigatorio;
   for (const s of setsOrdenados) {

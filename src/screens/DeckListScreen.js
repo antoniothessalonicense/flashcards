@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useEffect, useContext, useMemo } from 'react';
 import { View, Text, TouchableOpacity, FlatList, Modal, ScrollView, TextInput, Share, Alert, Switch, StyleSheet, Pressable } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -52,6 +52,12 @@ const flashcardSchema = z.array(
 );
 
 const COLORS = ['#4CAF50', '#2196F3', '#FF9800', '#E91E63', '#9C27B0', '#00BCD4'];
+const SORT_MODES = [
+  { key: 'alphabetical', label: 'Alfabética' },
+  { key: 'atrasados', label: 'Atrasados' },
+  { key: 'prioridade', label: 'Prioridade' },
+  { key: 'erros', label: 'Mais erros' },
+];
 const getDeckColor = (id) => {
   const hash = id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
   return COLORS[hash % COLORS.length];
@@ -73,7 +79,12 @@ const DeckItem = ({ deck, stats, isTarget, setMenuAtivo }) => {
       <View style={localStyles.cardContent}>
         <View style={localStyles.cardHeader}>
           <Text style={[localStyles.cardTitle, { color: theme.white }]}>{deck.title}</Text>
-          <Text style={localStyles.cardSubtitle}>{totalCards} cartões</Text>
+          <View style={localStyles.priorityRow}>
+            <Text style={localStyles.cardSubtitle}>{totalCards} cartões</Text>
+            <View style={localStyles.priorityBadge}>
+              <Text style={localStyles.priorityText}>P: {deck.priority ?? 0}</Text>
+            </View>
+          </View>
         </View>
 
         <View style={localStyles.progressContainer}>
@@ -111,6 +122,8 @@ function DeckListScreen({ decks = [], totalCardsCount = 0, deckStats = [] }) {
   const [tempTextSize, setTempTextSize] = useState(24);
   const [isSearching, setIsSearching] = useState(false);
   const [cardSearchQuery, setCardSearchQuery] = useState('');
+  const [sortMode, setSortMode] = useState('alphabetical');
+  const [sortMenuVisible, setSortMenuVisible] = useState(false);
   const [helpModalVisible, setHelpModalVisible] = useState(false);
   const [stopwatchModalVisible, setStopwatchModalVisible] = useState(false);
 
@@ -746,6 +759,52 @@ function DeckListScreen({ decks = [], totalCardsCount = 0, deckStats = [] }) {
     return (deck.title || '').toLowerCase().includes(query);
   });
 
+  const deckStatsMap = useMemo(() => {
+    return new Map(deckStats.map(s => [s.setId, s]));
+  }, [deckStats]);
+
+  const sortedDecks = useMemo(() => {
+    const now = Date.now();
+    const list = [...filteredDecks];
+
+    const getStats = (deck) => deckStatsMap.get(deck.id) || { total: 0, memorized: 0, errors: 0 };
+
+    list.sort((a, b) => {
+      const statsA = getStats(a);
+      const statsB = getStats(b);
+
+      if (sortMode === 'alphabetical') {
+        return (a.title || '').localeCompare(b.title || '', 'pt-BR', { sensitivity: 'base' });
+      }
+
+      if (sortMode === 'atrasados') {
+        const overdueA = (a.next_review_date || 0) <= now ? 0 : 1;
+        const overdueB = (b.next_review_date || 0) <= now ? 0 : 1;
+        if (overdueA !== overdueB) return overdueA - overdueB;
+        const dateA = a.next_review_date || 0;
+        const dateB = b.next_review_date || 0;
+        if (dateA !== dateB) return dateA - dateB;
+        return (a.title || '').localeCompare(b.title || '', 'pt-BR', { sensitivity: 'base' });
+      }
+
+      if (sortMode === 'prioridade') {
+        const priorityA = a.priority ?? 9999;
+        const priorityB = b.priority ?? 9999;
+        if (priorityA !== priorityB) return priorityA - priorityB;
+        return (a.title || '').localeCompare(b.title || '', 'pt-BR', { sensitivity: 'base' });
+      }
+
+      if (sortMode === 'erros') {
+        if (statsA.errors !== statsB.errors) return statsB.errors - statsA.errors;
+        return (a.title || '').localeCompare(b.title || '', 'pt-BR', { sensitivity: 'base' });
+      }
+
+      return 0;
+    });
+
+    return list;
+  }, [filteredDecks, deckStatsMap, sortMode]);
+
   return (
     <View style={[styles.screen, { paddingTop: insets.top }]}>
       <View style={styles.header}>
@@ -817,6 +876,16 @@ function DeckListScreen({ decks = [], totalCardsCount = 0, deckStats = [] }) {
         </TouchableOpacity>
       </View>
 
+      <TouchableOpacity 
+        style={{ flexDirection: 'row', alignItems: 'center', marginHorizontal: 16, marginBottom: 12, paddingVertical: 8 }}
+        onPress={() => setSortMenuVisible(true)}
+      >
+        <Ionicons name="filter" size={16} color={theme.gray} style={{ marginRight: 6 }} />
+        <Text style={{ color: theme.gray, fontSize: 14 }}>
+          Ordenar por: <Text style={{ color: theme.white, fontWeight: 'bold' }}>{SORT_MODES.find(m => m.key === sortMode)?.label}</Text>
+        </Text>
+      </TouchableOpacity>
+
       <View style={styles.dailyGoal}>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
           <Text style={[styles.dailyGoalText, { marginBottom: 0 }]}>meta diária: {cardsReviewedToday}/{dailyGoal}  •  {totalCardsCount} {totalCardsCount === 1 ? 'cartão no total' : 'cartões no total'}</Text>
@@ -828,7 +897,7 @@ function DeckListScreen({ decks = [], totalCardsCount = 0, deckStats = [] }) {
       </View>
 
       <FlatList
-        data={filteredDecks}
+        data={sortedDecks}
         keyExtractor={item => String(item.id)}
         renderItem={({ item }) => {
           const stats = deckStats.find(s => s.setId === item.id) || { total: 0, memorized: 0 };
@@ -877,6 +946,30 @@ function DeckListScreen({ decks = [], totalCardsCount = 0, deckStats = [] }) {
             <TouchableOpacity style={styles.contextMenuItem} onPress={handleExportAllMD}>
               <Text style={styles.contextMenuText}>Exportar (MD / TXT)</Text>
             </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      <Modal visible={sortMenuVisible} transparent={true} animationType="fade" onRequestClose={() => setSortMenuVisible(false)}>
+        <TouchableOpacity style={styles.contextOverlay} activeOpacity={1} onPress={() => setSortMenuVisible(false)}>
+          <View style={styles.contextMenu}>
+            {SORT_MODES.map(option => (
+              <TouchableOpacity 
+                key={option.key} 
+                style={styles.contextMenuItem} 
+                onPress={() => {
+                  setSortMode(option.key);
+                  setSortMenuVisible(false);
+                }}
+              >
+                <Text style={[
+                  styles.contextMenuText, 
+                  sortMode === option.key && { color: theme.blue || '#4DA8DA', fontWeight: 'bold' }
+                ]}>
+                  {option.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
           </View>
         </TouchableOpacity>
       </Modal>
@@ -1545,6 +1638,30 @@ const localStyles = StyleSheet.create({
   cardHeader: {
     marginBottom: 12,
   },
+  sortRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    marginHorizontal: 20,
+    marginBottom: 16,
+  },
+  sortButton: {
+    backgroundColor: '#F4F6F8',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 20,
+  },
+  sortButtonActive: {
+    backgroundColor: '#2196F3',
+  },
+  sortButtonText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#444',
+  },
+  sortButtonTextActive: {
+    color: '#FFF',
+  },
   cardTitle: {
     fontSize: 18,
     fontWeight: 'bold',
@@ -1555,6 +1672,23 @@ const localStyles = StyleSheet.create({
     fontSize: 14,
     color: '#777',
     fontWeight: '500',
+  },
+  priorityRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 4,
+  },
+  priorityBadge: {
+    backgroundColor: '#E3F2FD',
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  priorityText: {
+    color: '#0D47A1',
+    fontSize: 12,
+    fontWeight: '700',
   },
   progressContainer: {
     marginTop: 4,
@@ -1618,7 +1752,7 @@ const localStyles = StyleSheet.create({
 });
 
 const DeckListScreenWrapper = (props) => {
-  const { data: decks } = useLiveQuery(db.select().from(sets).orderBy(asc(sets.title)));
+  const { data: decks } = useLiveQuery(db.select().from(sets).orderBy(asc(sets.priority), asc(sets.title)));
 
   // Agregação Otimizada: Em vez de carregar todos os potenciais cartões (full scan), 
   // agrupamos no lado do banco valendo-se do índice idx_cards_set_id
@@ -1626,7 +1760,8 @@ const DeckListScreenWrapper = (props) => {
     db.select({
       setId: cards.set_id,
       total: sql`count(${cards.id})`.mapWith(Number),
-      memorized: sql`sum(CASE WHEN ${cards.difficultyStatus} IN ('good', 'easy') THEN 1 ELSE 0 END)`.mapWith(Number)
+      memorized: sql`sum(CASE WHEN ${cards.difficultyStatus} IN ('good', 'easy') THEN 1 ELSE 0 END)`.mapWith(Number),
+      errors: sql`sum(CASE WHEN ${cards.difficultyStatus} = 'hard' THEN 1 ELSE 0 END)`.mapWith(Number)
     }).from(cards).groupBy(cards.set_id)
   );
 

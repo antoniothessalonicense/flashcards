@@ -9,6 +9,7 @@ export const sets = sqliteTable('sets', {
   backLanguage: text('backLanguage').notNull().default('en-US'),
   next_review_date: integer('next_review_date').notNull().default(0),
   totalReviews: integer('totalReviews').notNull().default(0),
+  priority: integer('priority').notNull().default(0),
 }, (table) => ({
   idx_next_review_date: index('idx_sets_next_review_date').on(table.next_review_date),
 }));
