@@ -5,6 +5,8 @@ import { StatusBar } from 'react-native';
 import { SQLiteProvider, deleteDatabaseAsync } from 'expo-sqlite';
 import { AppProvider, AppContext } from './src/context/AppContext';
 import AppNavigator from './src/navigation/AppNavigator';
+// Inicializa tags customizadas (ex.: <en>, <mudo>)
+try { require('./src/utils/initTags'); } catch (e) { /* noop if not present yet */ }
 
 // Função de inicialização e migração rápida
 const initializeDatabase = async (db) => {

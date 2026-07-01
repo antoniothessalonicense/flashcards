@@ -538,6 +538,23 @@ const ConfiguracaoCicloScreen: React.FC = () => {
                 → "O que é um" é lido em português, "array" é lido em inglês.
               </Text>
 
+              <Text style={styles.helpSubtitle}>🎨 Tag &lt;icone&gt; — Imagens Visuais</Text>
+              <Text style={styles.helpText}>
+                Use a tag <Text style={{ fontWeight: 'bold' }}>&lt;icone&gt;...&lt;/icone&gt;</Text> para exibir um ícone visual do pacote Ionicons no seu cartão. Você também pode definir o tamanho (o padrão é 20). O robô (TTS) lerá o nome do ícone (útil se você quer que ele fale "car" e veja o ícone do carro). Se não quiser que ele leia, envolva tudo em uma tag &lt;mudo&gt;.{"\n\n"}
+                <Text style={{ fontWeight: 'bold' }}>Exemplos de uso na Importação / Criação:</Text>{"\n"}
+                - <Text style={{ fontWeight: 'bold' }}>&lt;icone&gt;</Text>heart<Text style={{ fontWeight: 'bold' }}>&lt;/icone&gt;</Text> (Ícone de coração com tamanho 20){"\n"}
+                - <Text style={{ fontWeight: 'bold' }}>&lt;icone size=35&gt;</Text>car-sport<Text style={{ fontWeight: 'bold' }}>&lt;/icone&gt;</Text> (Ícone de carro esporte tamanho 35)
+              </Text>
+
+              <Text style={styles.helpSubtitle}>⚙️ Tag &lt;ui&gt; — Componentes Interativos</Text>
+              <Text style={styles.helpText}>
+                Use a tag <Text style={{ fontWeight: 'bold' }}>&lt;ui&gt;...&lt;/ui&gt;</Text> para adicionar componentes interativos nativos diretamente nos flashcards, permitindo simular interfaces de usuário durante seus estudos. O robô (TTS) ignorará automaticamente essas tags.{"\n\n"}
+                <Text style={{ fontWeight: 'bold' }}>Componentes suportados:</Text>{"\n"}
+                - <Text style={{ fontWeight: 'bold' }}>&lt;ui&gt;</Text>checkbox<Text style={{ fontWeight: 'bold' }}>&lt;/ui&gt;</Text> : Exibe uma caixa de seleção interagível.{"\n"}
+                - <Text style={{ fontWeight: 'bold' }}>&lt;ui&gt;</Text>switch<Text style={{ fontWeight: 'bold' }}>&lt;/ui&gt;</Text> : Exibe um botão do tipo alavanca (liga/desliga).{"\n"}
+                - <Text style={{ fontWeight: 'bold' }}>&lt;ui&gt;</Text>button<Text style={{ fontWeight: 'bold' }}>&lt;/ui&gt;</Text> : Exibe um botão genérico nativo.
+              </Text>
+
             </ScrollView>
             <TouchableOpacity style={[styles.modalStudyButton, { marginTop: 16 }]} onPress={() => setHelpModalVisible(false)}>
               <Text style={styles.modalStudyButtonText}>Entendi</Text>

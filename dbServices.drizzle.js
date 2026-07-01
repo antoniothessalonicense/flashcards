@@ -207,10 +207,9 @@ export async function buildCycleCards(config) {
     .groupBy(cards.set_id, sets.priority);
 
   const setsOrdenados = statsAll
-    .map(s => ({ ...s, pct: s.total > 0 ? (s.memorized || 0) / s.total : 0, priority: s.priority || 0 }))
+    .map(s => ({ ...s, pct: s.total > 0 ? (s.memorized || 0) / s.total : 0, priority: s.priority ?? 9999 }))
     .sort((a, b) => {
-      if (a.pct === b.pct) return (a.priority || 0) - (b.priority || 0);
-      return a.pct - b.pct;
+      return a.priority - b.priority;
     });
 
   let obrigatoriosRestantes = config.cardsPorConjuntoObrigatorio;

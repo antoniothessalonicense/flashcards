@@ -1,49 +1,19 @@
 import React, { useState, useEffect, useContext } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Alert, Modal, TextInput } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import * as Speech from 'expo-speech';
 import { useLiveQuery } from 'drizzle-orm/expo-sqlite';
 import { eq, lte, or, asc, inArray } from 'drizzle-orm';
-import { ProgressBar } from '../components/Shared';
+import { ProgressBar, FormattedText } from '../components/Shared';
+const { playMixedTTS } = require('../utils/tts');
 import LottieView from 'lottie-react-native';
 import { AppContext } from '../context/AppContext';
 import db from '../../db';
 import { sets, cards } from '../../db/schema';
-import { updateCardDifficulty, toggleCardImportant } from '../../dbServices.drizzle';
+import { updateCardDifficulty, toggleCardImportant, updateCard } from '../../dbServices.drizzle';
 
-const formatTextForDisplay = (text) => {
-  if (!text) return '';
-  return text.replace(/<\/?en>/ig, '').replace(/<\/?mudo>/ig, '');
-};
-
-const playMixedTTS = (text, baseLang, preferredVoices, overrideVoice = null) => {
-  if (!text) return;
-  const parts = text.split(/(<en>.*?<\/en>|<mudo>.*?<\/mudo>)/ig);
-  for (const p of parts) {
-    if (!p) continue;
-    // Tag <mudo>: conteúdo é completamente ignorado pelo TTS
-    if (p.toLowerCase().startsWith('<mudo>') && p.toLowerCase().endsWith('</mudo>')) {
-      continue;
-    }
-    if (p.toLowerCase().startsWith('<en>') && p.toLowerCase().endsWith('</en>')) {
-      const enText = p.replace(/<\/?en>/ig, '').trim();
-      if (enText) {
-        const enOpts = { language: 'en-US' };
-        if (preferredVoices?.['en-US']) enOpts.voice = preferredVoices['en-US'];
-        Speech.speak(enText, enOpts);
-      }
-    } else {
-      const ptText = p.trim();
-      if (ptText) {
-        const baseOpts = { language: baseLang };
-        if (overrideVoice) baseOpts.voice = overrideVoice;
-        else if (preferredVoices?.[baseLang]) baseOpts.voice = preferredVoices[baseLang];
-        Speech.speak(ptText, baseOpts);
-      }
-    }
-  }
-};
+// playMixedTTS agora centralizado em src/utils/tts.js
 
 // Componente de revisão de flashcards
 export function ReviewScreenComponent({ deck, cards = [], isAllMode = false }) {
@@ -76,18 +46,25 @@ export function ReviewScreenComponent({ deck, cards = [], isAllMode = false }) {
   const [lottieAnim, setLottieAnim] = useState(null);
   const [availableVoices, setAvailableVoices] = useState([]);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [localCards, setLocalCards] = useState(cards);
+  const [editModalVisible, setEditModalVisible] = useState(false);
+  const [editFront, setEditFront] = useState('');
+  const [editBack, setEditBack] = useState('');
+  const [focusedField, setFocusedField] = useState('front');
+  const [selectionFront, setSelectionFront] = useState({ start: 0, end: 0 });
+  const [selectionBack, setSelectionBack] = useState({ start: 0, end: 0 });
 
   useEffect(() => {
     let interval = null;
-    if (cards.length > 0 && index < cards.length) {
+    if (localCards.length > 0 && index < localCards.length) {
       interval = setInterval(() => {
         setElapsedSeconds(prev => prev + 1);
       }, 1000);
-    } else if (index >= cards.length) {
+    } else if (index >= localCards.length) {
       clearInterval(interval);
     }
     return () => clearInterval(interval);
-  }, [index, cards.length]);
+  }, [index, localCards.length]);
 
   const formatTime = (totalSeconds) => {
     const m = Math.floor(totalSeconds / 60).toString().padStart(2, '0');
@@ -105,7 +82,7 @@ export function ReviewScreenComponent({ deck, cards = [], isAllMode = false }) {
   };
 
   useEffect(() => {
-    if (cards.length > 0 && index >= cards.length && !lottieAnim) {
+    if (localCards.length > 0 && index >= localCards.length && !lottieAnim) {
       // Changed to a valid public Lottie JSON URL since the previous one returned HTML
       fetch('https://assets2.lottiefiles.com/packages/lf20_touohxv0.json')
         .then(res => {
@@ -115,26 +92,26 @@ export function ReviewScreenComponent({ deck, cards = [], isAllMode = false }) {
         .then(data => setLottieAnim(data))
         .catch(err => console.log("Erro ao baixar animação Lottie", err));
     }
-  }, [index, cards.length, lottieAnim]);
+  }, [index, localCards.length, lottieAnim]);
 
   useEffect(() => {
     Speech.getAvailableVoicesAsync().then(setAvailableVoices);
   }, []);
 
   useEffect(() => {
-    if (autoPlayAudio && cards[index]) {
+    if (autoPlayAudio && localCards[index]) {
       Speech.stop();
-      const currentCard = cards[index];
+      const currentCard = localCards[index];
       const currentLang = flipped
         ? (currentCard?.backLanguage || deck?.backLanguage || 'en-US')
         : (currentCard?.frontLanguage || deck?.frontLanguage || 'pt-BR');
       const textToSpeak = flipped ? currentCard.back : currentCard.front;
       playMixedTTS(textToSpeak, currentLang, preferredVoices);
     }
-  }, [index, flipped, autoPlayAudio, cards, deck, preferredVoices]);
+  }, [index, flipped, autoPlayAudio, localCards, deck, preferredVoices]);
 
   const changeVoice = () => {
-    const currentCard = cards[index];
+    const currentCard = localCards[index];
     const currentLang = flipped
       ? (currentCard?.backLanguage || deck?.backLanguage || 'en-US')
       : (currentCard?.frontLanguage || deck?.frontLanguage || 'pt-BR');
@@ -164,20 +141,20 @@ export function ReviewScreenComponent({ deck, cards = [], isAllMode = false }) {
 
   // Sincroniza o estado do coração ao trocar de card
   useEffect(() => {
-    if (cards[index]) {
-      setFavorited(cards[index].isImportant === 1);
+    if (localCards[index]) {
+      setFavorited(localCards[index].isImportant === 1);
     }
-  }, [index, cards]);
+  }, [index, localCards]);
 
   const handleToggleFavorite = async () => {
-    const currentCard = cards[index];
+    const currentCard = localCards[index];
     if (!currentCard) return;
     const newVal = await toggleCardImportant(currentCard.id);
     setFavorited(newVal === 1);
   };
 
   const handleRate = (type) => {
-    const currentCard = cards[index];
+    const currentCard = localCards[index];
     if (currentCard) onRateCard(currentCard.id, type);
     setRatings(prev => ({ ...prev, [type]: prev[type] + 1 }));
     incrementDailyReview();
@@ -185,7 +162,74 @@ export function ReviewScreenComponent({ deck, cards = [], isAllMode = false }) {
     setFlipped(false);
   };
 
-  if (cards.length === 0) {
+  const openEditModal = () => {
+    const currentCard = localCards[index];
+    if (!currentCard) return;
+    setEditFront(currentCard.front || '');
+    setEditBack(currentCard.back || '');
+    setEditModalVisible(true);
+  };
+
+  const saveEdit = async () => {
+    const currentCard = localCards[index];
+    if (!currentCard) return;
+    try {
+      await updateCard(currentCard.id, editFront, editBack);
+      setLocalCards(prev => prev.map(c => c.id === currentCard.id ? { ...c, front: editFront, back: editBack } : c));
+      setEditModalVisible(false);
+    } catch (e) {
+      console.error('Erro ao salvar card:', e);
+      Alert.alert('Erro', 'Não foi possível salvar o cartão.');
+    }
+  };
+
+  // Aux: calcula posições de cada palavra mantendo espaços/pontuação
+  const getWordPositions = (txt) => {
+    const words = [];
+    if (!txt) return words;
+    const re = /\S+/g; // sequências não-branco
+    let m;
+    while ((m = re.exec(txt)) !== null) {
+      words.push({ word: m[0], start: m.index, end: m.index + m[0].length });
+    }
+    return words;
+  };
+
+  const wrapSelectionWithTag = (field, tagName) => {
+    const isFront = field === 'front';
+    const txt = isFront ? editFront : editBack;
+    const sel = isFront ? selectionFront : selectionBack;
+    if (!txt) return;
+    if (sel.start === sel.end) {
+      Alert.alert('Seleção vazia', 'Selecione uma palavra tocando no preview ou selecionando no campo.');
+      return;
+    }
+    const before = txt.slice(0, sel.start);
+    const middle = txt.slice(sel.start, sel.end);
+    const after = txt.slice(sel.end);
+    const wrapped = `${before}<${tagName}>${middle}</${tagName}>${after}`;
+    if (isFront) setEditFront(wrapped); else setEditBack(wrapped);
+    // limpar seleção
+    if (isFront) setSelectionFront({ start: sel.start, end: sel.start + tagName.length * 2 + 5 + middle.length });
+    else setSelectionBack({ start: sel.start, end: sel.start + tagName.length * 2 + 5 + middle.length });
+  };
+
+  const insertTagAtCursor = (field, tagName) => {
+    const isFront = field === 'front';
+    const txt = isFront ? editFront : editBack;
+    const sel = isFront ? selectionFront : selectionBack;
+    const start = sel.start ?? txt.length;
+    const end = sel.end ?? txt.length;
+    const before = txt.slice(0, start);
+    const after = txt.slice(end);
+    const wrapped = `${before}<${tagName}></${tagName}>${after}`;
+    if (isFront) setEditFront(wrapped); else setEditBack(wrapped);
+    // move cursor inside the new empty tag
+    const newPos = start + tagName.length + 2;
+    if (isFront) setSelectionFront({ start: newPos, end: newPos }); else setSelectionBack({ start: newPos, end: newPos });
+  };
+
+  if (localCards.length === 0) {
     return (
       <View style={[styles.screen, styles.doneScreen, { paddingTop: insets.top, backgroundColor: C.bg }]}> 
         <Text style={[styles.doneTitle, { color: C.white }]}>Baralho Vazio!</Text>
@@ -196,7 +240,7 @@ export function ReviewScreenComponent({ deck, cards = [], isAllMode = false }) {
     );
   }
 
-  if (index >= cards.length) {
+  if (index >= localCards.length) {
     return (
       <View style={[styles.screen, styles.doneScreen, { paddingTop: insets.top, backgroundColor: C.bg }]}> 
         {lottieAnim ? (
@@ -231,8 +275,8 @@ export function ReviewScreenComponent({ deck, cards = [], isAllMode = false }) {
     );
   }
 
-  const card = cards[index];
-  const progress = (index / cards.length) * 100;
+  const card = localCards[index];
+  const progress = (index / Math.max(1, localCards.length)) * 100;
 
   return (
     <View style={[styles.screen, { paddingTop: insets.top, backgroundColor: C.bg }]}>
@@ -243,7 +287,7 @@ export function ReviewScreenComponent({ deck, cards = [], isAllMode = false }) {
         <View style={{ flex: 1, justifyContent: 'center', paddingHorizontal: 8 }}>
           <ProgressBar value={progress} color={C.blue} theme={theme} />
         </View>
-        <Text style={[styles.progressText, { color: C.gray }]}>{index} / {cards.length}</Text>
+        <Text style={[styles.progressText, { color: C.gray }]}>{index} / {localCards.length}</Text>
         {showStopwatch && (
           <View style={{ flexDirection: 'row', alignItems: 'center', marginLeft: 8, backgroundColor: C.cardBtnBg, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12 }}>
             <Text style={{ fontSize: 12, marginRight: 4 }}>⏱️</Text>
@@ -274,16 +318,107 @@ export function ReviewScreenComponent({ deck, cards = [], isAllMode = false }) {
         <TouchableOpacity style={styles.changeVoiceBtn} onPress={changeVoice}>
           <Text style={{ fontSize: 20 }}>🗣️</Text>
         </TouchableOpacity>
+        <TouchableOpacity style={styles.editBtn} onPress={openEditModal}>
+          <Text style={{ fontSize: 18 }}>✏️</Text>
+        </TouchableOpacity>
 
         <View style={styles.cardContent}>
-          <Text style={[
-            flipped ? styles.cardBack : styles.cardFront, 
-            { color: C.white },
-            cardFontSize ? { fontSize: flipped ? Math.max(14, cardFontSize * 0.75) : cardFontSize } : {}
-          ]}> 
-            {flipped ? formatTextForDisplay(card.back) : formatTextForDisplay(card.front)}
-          </Text>
+          <FormattedText 
+            style={[
+              flipped ? styles.cardBack : styles.cardFront, 
+              { color: C.white },
+              cardFontSize ? { fontSize: flipped ? Math.max(14, cardFontSize * 0.75) : cardFontSize } : {}
+            ]} 
+            text={flipped ? card.back : card.front}
+          />
         </View>
+
+        <Modal visible={editModalVisible} animationType="slide" transparent={true} onRequestClose={() => setEditModalVisible(false)}>
+          <View style={{ flex:1, justifyContent:'center', backgroundColor: '#00000066', padding: 20 }}>
+            <View style={{ backgroundColor: C.bg, borderRadius: 12, padding: 16 }}>
+              <Text style={{ color: C.white, fontWeight: 'bold', marginBottom: 8 }}>Editar Cartão</Text>
+              <Text style={{ color: C.gray, marginBottom: 4 }}>Frente</Text>
+              {/* Preview touchable por palavra */}
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 6 }}>
+                {getWordPositions(editFront).map((w, i) => {
+                  const selected = focusedField === 'front' && selectionFront.start === w.start && selectionFront.end === w.end;
+                  return (
+                    <TouchableOpacity key={`pf-${i}`} onPress={() => { setFocusedField('front'); setSelectionFront({ start: w.start, end: w.end }); }}>
+                      <Text style={{ color: selected ? C.blue : C.white, backgroundColor: selected ? '#ffffff11' : 'transparent', paddingHorizontal: 4 }}>{w.word}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+              <TextInput
+                value={editFront}
+                onChangeText={setEditFront}
+                multiline
+                onFocus={() => setFocusedField('front')}
+                selection={selectionFront}
+                onSelectionChange={(e) => setSelectionFront(e.nativeEvent.selection)}
+                style={{ minHeight: 60, backgroundColor: '#111', color: C.white, padding: 8, borderRadius: 6 }}
+              />
+              <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
+                <TouchableOpacity onPress={() => {
+                    if (focusedField === 'front' && selectionFront.start !== selectionFront.end) wrapSelectionWithTag('front', 'en');
+                    else insertTagAtCursor('front', 'en');
+                  }} style={{ padding: 8, backgroundColor: C.cardBtnBg, borderRadius: 6 }}>
+                  <Text style={{ color: C.white }}>+ &lt;en&gt;</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => {
+                    if (focusedField === 'front' && selectionFront.start !== selectionFront.end) wrapSelectionWithTag('front', 'mudo');
+                    else insertTagAtCursor('front', 'mudo');
+                  }} style={{ padding: 8, backgroundColor: C.cardBtnBg, borderRadius: 6 }}>
+                  <Text style={{ color: C.white }}>+ &lt;mudo&gt;</Text>
+                </TouchableOpacity>
+              </View>
+
+              <Text style={{ color: C.gray, marginTop: 12, marginBottom: 4 }}>Verso</Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 6 }}>
+                {getWordPositions(editBack).map((w, i) => {
+                  const selected = focusedField === 'back' && selectionBack.start === w.start && selectionBack.end === w.end;
+                  return (
+                    <TouchableOpacity key={`pb-${i}`} onPress={() => { setFocusedField('back'); setSelectionBack({ start: w.start, end: w.end }); }}>
+                      <Text style={{ color: selected ? C.blue : C.white, backgroundColor: selected ? '#ffffff11' : 'transparent', paddingHorizontal: 4 }}>{w.word}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+              <TextInput
+                value={editBack}
+                onChangeText={setEditBack}
+                multiline
+                onFocus={() => setFocusedField('back')}
+                selection={selectionBack}
+                onSelectionChange={(e) => setSelectionBack(e.nativeEvent.selection)}
+                style={{ minHeight: 60, backgroundColor: '#111', color: C.white, padding: 8, borderRadius: 6 }}
+              />
+              <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
+                <TouchableOpacity onPress={() => {
+                    if (focusedField === 'back' && selectionBack.start !== selectionBack.end) wrapSelectionWithTag('back', 'en');
+                    else insertTagAtCursor('back', 'en');
+                  }} style={{ padding: 8, backgroundColor: C.cardBtnBg, borderRadius: 6 }}>
+                  <Text style={{ color: C.white }}>+ &lt;en&gt;</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => {
+                    if (focusedField === 'back' && selectionBack.start !== selectionBack.end) wrapSelectionWithTag('back', 'mudo');
+                    else insertTagAtCursor('back', 'mudo');
+                  }} style={{ padding: 8, backgroundColor: C.cardBtnBg, borderRadius: 6 }}>
+                  <Text style={{ color: C.white }}>+ &lt;mudo&gt;</Text>
+                </TouchableOpacity>
+              </View>
+
+              <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: 8, marginTop: 12 }}>
+                <TouchableOpacity onPress={() => setEditModalVisible(false)} style={{ padding: 10 }}>
+                  <Text style={{ color: C.gray }}>Cancelar</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={saveEdit} style={{ padding: 10, backgroundColor: C.blue, borderRadius: 8 }}>
+                  <Text style={{ color: C.white }}>Salvar</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
 
         <Text style={styles.cardHint}>{flipped ? 'toque para ver o verso' : 'toque para revelar'}</Text>
         <TouchableOpacity style={[styles.replayBtn, { backgroundColor: C.blue }]} onPress={() => setFlipped(false)}>
@@ -411,6 +546,7 @@ const styles = StyleSheet.create({
   favBtn: { position: 'absolute', top: 14, left: 14, zIndex: 1 },
   audioBtn: { position: 'absolute', top: 14, right: 14, zIndex: 1 },
   changeVoiceBtn: { position: 'absolute', top: 56, right: 14, zIndex: 1 },
+  editBtn: { position: 'absolute', top: 98, right: 14, zIndex: 1 },
   replayBtn: { position: 'absolute', bottom: 14, right: 56, width: 36, height: 36, borderRadius: 18, justifyContent: 'center', alignItems: 'center' },
   nextCardBtn: { position: 'absolute', bottom: 14, right: 14, width: 36, height: 36, borderRadius: 18, justifyContent: 'center', alignItems: 'center' },
   ratingRow: { flexDirection: 'row', padding: 16, gap: 8 },

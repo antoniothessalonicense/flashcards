@@ -9,39 +9,8 @@ import db from '../../db';
 import { sets, cards } from '../../db/schema';
 import { AppContext } from '../context/AppContext';
 import { toggleCardImportant } from '../../dbServices.drizzle';
-
-const formatTextForDisplay = (text) => {
-  if (!text) return '';
-  return text.replace(/<\/?en>/ig, '').replace(/<\/?mudo>/ig, '');
-};
-
-const playMixedTTS = (text, baseLang, preferredVoices, overrideVoice = null) => {
-  if (!text) return;
-  const parts = text.split(/(<en>.*?<\/en>|<mudo>.*?<\/mudo>)/ig);
-  for (const p of parts) {
-    if (!p) continue;
-    // Tag <mudo>: conteúdo é completamente ignorado pelo TTS
-    if (p.toLowerCase().startsWith('<mudo>') && p.toLowerCase().endsWith('</mudo>')) {
-      continue;
-    }
-    if (p.toLowerCase().startsWith('<en>') && p.toLowerCase().endsWith('</en>')) {
-      const enText = p.replace(/<\/?en>/ig, '').trim();
-      if (enText) {
-        const enOpts = { language: 'en-US' };
-        if (preferredVoices?.['en-US']) enOpts.voice = preferredVoices['en-US'];
-        Speech.speak(enText, enOpts);
-      }
-    } else {
-      const ptText = p.trim();
-      if (ptText) {
-        const baseOpts = { language: baseLang };
-        if (overrideVoice) baseOpts.voice = overrideVoice;
-        else if (preferredVoices?.[baseLang]) baseOpts.voice = preferredVoices[baseLang];
-        Speech.speak(ptText, baseOpts);
-      }
-    }
-  }
-};
+import { FormattedText } from '../components/Shared';
+const { playMixedTTS } = require('../utils/tts');
 
 const DeckCardItem = ({ item, deck, onMenuPress, theme, styles, preferredVoices }) => {
   const [favorited, setFavorited] = useState(item.isImportant === 1);
@@ -49,8 +18,8 @@ const DeckCardItem = ({ item, deck, onMenuPress, theme, styles, preferredVoices 
   return (
     <View style={styles.ddCard}>
       <View style={{ flex: 1 }}>
-        <Text style={styles.ddCardFront} numberOfLines={3}>{formatTextForDisplay(item.front)}</Text>
-        <Text style={styles.ddCardBack} numberOfLines={3}>{formatTextForDisplay(item.back)}</Text>
+        <FormattedText style={styles.ddCardFront} numberOfLines={3} text={item.front} />
+        <FormattedText style={styles.ddCardBack} numberOfLines={3} text={item.back} />
         {item.tag ? <Text style={styles.ddCardTag}>⭐ {item.tag}</Text> : null}
       </View>
       <View style={styles.ddCardFooter}>
@@ -173,7 +142,7 @@ function DeckDetailsScreenContent({ deck, deckCards = [] }) {
         </View>
         <View style={{ alignItems: 'flex-end' }}>
           <Text style={{ color: '#BBBBBB', fontSize: 12 }}>Tipo de priorização</Text>
-          <Text style={{ color: '#FFFFFF', fontSize: 12 }}>Maior valor = mais prioridade</Text>
+          <Text style={{ color: '#FFFFFF', fontSize: 12 }}>Menor valor = mais prioridade</Text>
         </View>
       </View>
 
