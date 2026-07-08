@@ -145,3 +145,57 @@
 * **Causa:** Arquivos `.txt` (Plain Text / Texto Puro) **não suportam** o armazenamento de mídia embutida (como imagens, áudios ou vídeos) por definição tecnológica do formato. Se o usuário tentar copiar e colar uma imagem para um Bloco de Notas, ou salvar um documento Word (.docx/.rtf) forçadamente como .txt, os dados binários da imagem são destruídos ou o arquivo se torna ilegível para o parser do aplicativo, resultando em erro ou descarte da imagem durante a importação.
 * **Solução:** É impossível usar `.txt` para imagens. A solução requer alterar a arquitetura do aplicativo para suportar formatos que embutem mídia (como importação de arquivos `.zip`, `.apkg` do Anki, ou JSON contendo imagens codificadas em Base64).
 * **Palavras-chave:** txt, imagem, importação, fotos em cards, plain text, Base64, apkg
+
+### [01/07/2026] - ReferenceError: Property 'offset' doesn't exist (ReviewScreen)
+* **Categoria:** Renderização / Desestruturação
+* **Causa:** Na função IIFE de renderização do card (ReviewScreen.js L344), a variável `offset` era retornada por `extractTopVisual()` mas **não era incluída na desestruturação** (`const { iconName, size, trimmedText } = ...`). Quando usada em `{ marginTop: offset }` na L348, causava `ReferenceError` pois `offset` não existia no escopo.
+* **Solução:** Adicionar `offset` à desestruturação: `const { iconName, size, offset, trimmedText } = extractTopVisual(...)`.
+* **Palavras-chave:** offset, ReferenceError, extractTopVisual, desestruturação, marginTop, ReviewScreen
+
+### [01/07/2026] - "house" is not a valid icon name for family "ionicons"
+* **Categoria:** Ícones / Dados do Banco
+* **Causa:** Alguns cards no banco de dados contêm `<icone>house</icone>` no conteúdo de texto. O nome "house" não existe na família Ionicons — o nome correto é "home".
+* **Solução:** Adicionado mapa `ICON_ALIASES` no `extractTopVisual()` em ReviewScreen.js que normaliza nomes de ícone inválidos para seus equivalentes corretos no Ionicons (ex: `house` → `home`, `gear` → `settings`, `clock` → `time`).
+* **Palavras-chave:** house, ionicons, ícone inválido, icon name, ICON_ALIASES, home, extractTopVisual
+
+### [01/07/2026] - ExpoSpeech.getVoices has been rejected / TTS not initialized
+* **Categoria:** TTS / Speech
+* **Causa:** `Speech.getAvailableVoicesAsync()` é chamado sem tratamento de erro em ReviewScreen.js e DeckListScreen.js. Em dispositivos/emuladores onde o engine TTS não está inicializado ou disponível, a Promise é rejeitada sem catch, gerando erro não capturado.
+* **Solução:** Adicionar `.catch()` ao `Speech.getAvailableVoicesAsync()` em ambas as telas para silenciar o erro quando TTS não está disponível.
+* **Palavras-chave:** ExpoSpeech, getVoices, TTS, speech, getAvailableVoicesAsync, rejected, not initialized
+
+### [02/07/2026] - context deadline exceeded (context7 / expo-mcp)
+* **Categoria:** IDE / MCP (Model Context Protocol)
+* **Causa:** Esse erro ocorre quando os servidores MCP (como `context7` ou `expo-mcp`) demoram mais do que o limite de tempo configurado para responder a uma solicitação do assistente/IA. Pode ser causado por lentidão temporária do sistema, processos travados em segundo plano (Node.js) ou indexações pesadas rodando.
+* **Solução:** Tentar reenviar o prompt novamente. Se o problema persistir, reiniciar a IDE/Editor e interromper eventuais processos `node.exe` em segundo plano que estejam travando os servidores MCP.
+* **Palavras-chave:** context deadline exceeded, context7, expo-mcp, MCP, timeout, IDE, travamento
+
+### [02/07/2026] - Tag <mudo> escondendo o texto ao invés de apenas silenciar o TTS
+* **Categoria:** UI / TTS / Tags
+* **Causa:** O handler da tag `<mudo>` no arquivo `initTags.js` foi configurado com a função de renderização retornando `children: ''`, ou seja, substituindo visualmente o texto por uma string vazia. Isso ocultava totalmente o texto para o usuário, ao invés de deixá-lo visível e apenas ignorá-lo na leitura (que é gerido pelo `ttsBehavior: 'ignore'`).
+* **Solução:** Alterada a função de renderização em `initTags.js` para retornar o conteúdo original: `render: (content) => ({ type: 'text', props: { children: content } })`, garantindo que o texto apareça normalmente na tela.
+* **Palavras-chave:** mudo, esconder texto, tag mudo, initTags, children vazia, TTS
+
+### [02/07/2026] - Sessão de estudo (Revisar Tudo/Praticar Tudo) usando linguagem padrão (Português) em vez da configurada no conjunto
+* **Categoria:** TTS / Banco de Dados / Modos de Estudo
+* **Causa:** Nos modos de estudo globais (`reviewAll` e `practiceAll`), a função `fetchMulti` em `ReviewScreen.js` estava selecionando dados apenas da tabela `cards` (`db.select().from(cards)`). Como as linguagens `frontLanguage` e `backLanguage` pertencem à tabela `sets`, essas propriedades não eram retornadas. Na hora de falar o texto, as linguagens resultavam como undefined e ativavam o fallback hardcoded (`pt-BR`).
+* **Solução:** A query em `fetchMulti` foi atualizada para realizar um `.innerJoin(sets, eq(cards.set_id, sets.id))` e extrair explicitamente `frontLanguage: sets.frontLanguage` e `backLanguage: sets.backLanguage`, espelhando a funcionalidade que já existia corretamente no Ciclo de Estudo (`fetchCycleCards`).
+* **Palavras-chave:** ReviewScreen, fetchMulti, reviewAll, practiceAll, frontLanguage, backLanguage, idioma errado, TTS, fallback
+
+### [02/07/2026] - Idioma e voz ignorados em todas as sessões (TTS sempre caindo no fallback padrão)
+* **Categoria:** TTS / Parâmetros de Função
+* **Causa:** A função utilitária `playMixedTTS` (em `src/utils/tts.js`) esperava um objeto de opções como segundo argumento `(text, options = {})` contendo a chave `defaultLang`. Entretanto, os componentes de interface (como `ReviewScreen.js`) estavam chamando a função passando a string do idioma diretamente como argumento secundário: `playMixedTTS(text, currentLang, preferredVoices)`. Consequentemente, ao tentar ler `options.defaultLang` a partir de uma string, o resultado era `undefined`, e o TTS fazia o fallback incondicional para o idioma do sistema (Português). As preferências de vozes (`preferredVoices`) e troca manual de vozes também estavam sendo ignoradas pela mesma falha de assinatura.
+* **Solução:** As chamadas para `playMixedTTS` no arquivo `ReviewScreen.js` foram reescritas para encapsular os parâmetros num objeto estruturado: `{ defaultLang: currentLang, preferredVoices, voice: nextVoice }`. Adicionalmente, o utilitário `tts.js` foi adaptado para injetar as `preferredVoices` e `voice` no engine nativo (`_speak`), garantindo que o idioma e a voz escolhida pelo usuário sejam respeitados, inclusive dentro das tags híbridas como `<en>`.
+* **Palavras-chave:** playMixedTTS, options, defaultLang, fallback, preferredVoices, mudança de voz, ignorado, idioma errado, assinatura de função
+
+### [03/07/2026] - Property 'user' does not exist on type 'SignInResponse'
+* **Categoria:** Autenticação / Tipagem TS
+* **Causa:** Na versão 13+ da biblioteca `@react-native-google-signin/google-signin`, o retorno da promessa de `GoogleSignin.signIn()` foi alterado para um objeto que contém a propriedade `type` e `data`. Acessar `response.user` diretamente resulta em erro de TypeScript (e runtime error, já que fica `undefined`), pois o objeto do usuário agora fica encapsulado em `response.data.user` (quando `response.type === 'success'`).
+* **Solução:** Alterar a verificação de retorno. Checar `if (response.type === 'success')` e acessar os dados através de `response.data.user` (foi corrigido nos arquivos `app/index.tsx` e `src/screens/LoginScreen.js`).
+* **Palavras-chave:** SignInResponse, SignInSuccessResponse, GoogleSignin, property user does not exist, type error
+
+### [03/07/2026] - Method writeAsStringAsync imported from "expo-file-system" is deprecated
+* **Categoria:** API Depreciada / FileSystem
+* **Causa:** O Expo SDK 54+ (atualmente no 56) marcou as funções soltas do `expo-file-system` (como `writeAsStringAsync`, `readAsStringAsync`, etc.) como depreciadas em favor da nova API baseada em classes (`File` e `Directory`). A tentativa de usá-las pela importação padrão quebra a exportação com um erro.
+* **Solução:** A importação no arquivo `src/screens/DeckListScreen.js` foi alterada de `import * as FileSystem from 'expo-file-system';` para `import * as FileSystem from 'expo-file-system/legacy';`. Essa rota permite usar o código antigo sem a necessidade de reescrever tudo imediatamente.
+* **Palavras-chave:** writeAsStringAsync, deprecated, expo-file-system, legacy, exportação

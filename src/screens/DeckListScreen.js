@@ -3,7 +3,7 @@ import { View, Text, TouchableOpacity, FlatList, Modal, ScrollView, TextInput, S
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import * as Clipboard from 'expo-clipboard';
 import { z } from 'zod';
@@ -112,20 +112,32 @@ const DeckItem = ({ deck, stats, isTarget, setMenuAtivo }) => {
 };
 
 function DeckListScreen({ decks = [], totalCardsCount = 0, deckStats = [] }) {
-  const { theme, styles, cardsReviewedToday, dailyGoal, targetReviewDecks, isDark, setIsDark, preferredVoices, handleSetPreferredVoice, autoPlayAudio, handleSetAutoPlayAudio, cardFontSize, updateSettings, showStopwatch, setShowStopwatch } = useContext(AppContext);
+  const { theme, styles, cardsReviewedToday, dailyGoal, targetReviewDecks, themeName, setAppTheme, isDark, setIsDark, preferredVoices, handleSetPreferredVoice, autoPlayAudio, handleSetAutoPlayAudio, cardFontSize, updateSettings, showStopwatch, setShowStopwatch, defaultIconSize, handleSetDefaultIconSize, defaultIconOffset, handleSetDefaultIconOffset } = useContext(AppContext);
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
 
   const [menuAtivo, setMenuAtivo] = useState(null);
   const [menuVisible, setMenuVisible] = useState(false);
+  const [themeModalVisible, setThemeModalVisible] = useState(false);
   const [textSizeModalVisible, setTextSizeModalVisible] = useState(false);
+  const [iconSizeModalVisible, setIconSizeModalVisible] = useState(false);
   const [tempTextSize, setTempTextSize] = useState(24);
+  const [tempIconSize, setTempIconSize] = useState(defaultIconSize || 80);
+  const [tempIconOffset, setTempIconOffset] = useState(defaultIconOffset || 0);
   const [isSearching, setIsSearching] = useState(false);
   const [cardSearchQuery, setCardSearchQuery] = useState('');
   const [sortMode, setSortMode] = useState('alphabetical');
   const [sortMenuVisible, setSortMenuVisible] = useState(false);
   const [helpModalVisible, setHelpModalVisible] = useState(false);
   const [stopwatchModalVisible, setStopwatchModalVisible] = useState(false);
+
+  useEffect(() => {
+    setTempIconSize(defaultIconSize || 80);
+  }, [defaultIconSize]);
+
+  useEffect(() => {
+    setTempIconOffset(defaultIconOffset || 0);
+  }, [defaultIconOffset]);
 
   const [actionDeckId, setActionDeckId] = useState(null);
   const [editModal, setEditModal] = useState(false);
@@ -191,7 +203,9 @@ function DeckListScreen({ decks = [], totalCardsCount = 0, deckStats = [] }) {
   };
 
   useEffect(() => {
-    Speech.getAvailableVoicesAsync().then(setAvailableVoices);
+    Speech.getAvailableVoicesAsync()
+      .then(setAvailableVoices)
+      .catch(() => console.log('TTS não disponível neste dispositivo'));
   }, []);
 
   const getVoiceEmoji = (name = '') => {
@@ -694,7 +708,7 @@ function DeckListScreen({ decks = [], totalCardsCount = 0, deckStats = [] }) {
       setExportModalVisible(false);
     } catch (error) {
       console.error('Erro ao exportar arquivo:', error);
-      Alert.alert('Erro', 'Ocorreu um erro ao gerar o arquivo de exportação.');
+      Alert.alert('Erro', `Ocorreu um erro ao gerar o arquivo de exportação: ${error.message}`);
     }
   };
 
@@ -1270,6 +1284,50 @@ function DeckListScreen({ decks = [], totalCardsCount = 0, deckStats = [] }) {
         </View>
       </Modal>
 
+      {/* Modal de Temas da Tela */}
+      <Modal visible={themeModalVisible} transparent animationType="fade" onRequestClose={() => setThemeModalVisible(false)}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', padding: 20 }}>
+          <View style={{ backgroundColor: theme.card, width: '100%', borderRadius: 16, padding: 20 }}>
+            <Text style={{ fontSize: 18, fontWeight: 'bold', color: theme.white, marginBottom: 16 }}>Escolha um Tema</Text>
+            
+            <View style={{ gap: 10, marginBottom: 20 }}>
+              {[
+                { id: 'light', label: 'Default Claro', colors: ['#F5F5F5', '#3B9EFF'] },
+                { id: 'dark', label: 'Default Escuro', colors: ['#1A1A1A', '#3B9EFF'] },
+                { id: 'neon_vibrant', label: 'Neon Vibrant', colors: ['#0A0A0A', '#00E5FF'] },
+                { id: 'earth_tones', label: 'Earth Tones', colors: ['#2B2521', '#B26A4F'] },
+                { id: 'arctic_cool', label: 'Arctic Cool', colors: ['#F0F4F8', '#29B6F6'] },
+                { id: 'pastel_dreams', label: 'Pastel Dreams', colors: ['#FFF8E1', '#F48FB1'] }
+              ].map(t => (
+                <TouchableOpacity 
+                  key={t.id} 
+                  style={{ 
+                    flexDirection: 'row', alignItems: 'center', padding: 14, 
+                    borderRadius: 10, borderWidth: 2, 
+                    borderColor: themeName === t.id ? theme.blue : theme.sep,
+                    backgroundColor: t.colors[0] 
+                  }}
+                  onPress={() => setAppTheme(t.id)}
+                >
+                  <View style={{ width: 16, height: 16, borderRadius: 8, backgroundColor: t.colors[1], marginRight: 12 }} />
+                  <Text style={{ flex: 1, fontWeight: 'bold', color: t.id === 'light' || t.id === 'arctic_cool' || t.id === 'pastel_dreams' ? '#000' : '#FFF' }}>
+                    {t.label}
+                  </Text>
+                  {themeName === t.id && <Text style={{ color: theme.blue, fontWeight: 'bold' }}>✓</Text>}
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <TouchableOpacity 
+              style={{ backgroundColor: theme.blue, paddingVertical: 14, borderRadius: 10, alignItems: 'center' }} 
+              onPress={() => setThemeModalVisible(false)}
+            >
+              <Text style={{ color: '#FFF', fontWeight: 'bold', fontSize: 16 }}>Fechar</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
       <MenuScreen
         visible={menuVisible}
         onClose={() => setMenuVisible(false)}
@@ -1278,11 +1336,17 @@ function DeckListScreen({ decks = [], totalCardsCount = 0, deckStats = [] }) {
           if (id === 'import') handleImport();
           if (id === 'statistics') navigation.navigate('Statistics');
           if (id === 'settings') navigation.navigate('Configuracoes');
+          if (id === 'icon_size') {
+            setTempIconSize(defaultIconSize || 80);
+            setTempIconOffset(defaultIconOffset || 0);
+            setIconSizeModalVisible(true);
+          }
           if (id === 'text_size') {
             setTempTextSize(cardFontSize || 24);
             setTextSizeModalVisible(true);
           }
           if (id === 'voices') setVoicesConfigModalVisible(true);
+          if (id === 'themes') setThemeModalVisible(true);
           if (id === 'help') setHelpModalVisible(true);
           if (id === 'stopwatch_config') setStopwatchModalVisible(true);
         }}
@@ -1323,6 +1387,55 @@ function DeckListScreen({ decks = [], totalCardsCount = 0, deckStats = [] }) {
               <TouchableOpacity style={{ backgroundColor: theme.blue, paddingVertical: 12, paddingHorizontal: 20, borderRadius: 8 }} onPress={() => {
                 updateSettings(0, tempTextSize, autoPlayAudio);
                 setTextSizeModalVisible(false);
+              }}>
+                <Text style={{ color: '#FFF', fontWeight: 'bold' }}>Salvar</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal visible={iconSizeModalVisible} transparent animationType="fade" onRequestClose={() => setIconSizeModalVisible(false)}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: 20 }}>
+          <View style={{ backgroundColor: theme.card, width: '100%', borderRadius: 16, padding: 20 }}>
+            <Text style={{ fontSize: 18, fontWeight: 'bold', color: theme.white, marginBottom: 16 }}>Tamanho padrão do ícone</Text>
+
+            <View style={{ backgroundColor: theme.reviewCard || '#E3F2FD', borderRadius: 12, padding: 20, minHeight: 160, justifyContent: 'center', alignItems: 'center', marginBottom: 20 }}>
+              <Text style={{ fontSize: tempIconSize, color: theme.white, fontWeight: 'bold', textAlign: 'center' }}>✨</Text>
+              <Text style={{ color: theme.white, marginTop: 12 }}>Tamanho atual: {tempIconSize}</Text>
+              <Text style={{ color: theme.white, marginTop: 4 }}>Posição vertical: {tempIconOffset}</Text>
+            </View>
+
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
+              <TouchableOpacity style={{ backgroundColor: '#8DE8C7', width: 40, height: 40, borderRadius: 8, justifyContent: 'center', alignItems: 'center' }} onPress={() => setTempIconSize(Math.max(24, tempIconSize - 8))}>
+                <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#000' }}>-</Text>
+              </TouchableOpacity>
+              
+              <Text style={{ fontSize: 20, color: theme.white, marginHorizontal: 20, fontWeight: 'bold' }}>{tempIconSize}</Text>
+              
+              <TouchableOpacity style={{ backgroundColor: '#8DE8C7', width: 40, height: 40, borderRadius: 8, justifyContent: 'center', alignItems: 'center' }} onPress={() => setTempIconSize(Math.min(120, tempIconSize + 8))}>
+                <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#000' }}>+</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 24 }}>
+              <TouchableOpacity style={{ backgroundColor: '#8DE8C7', width: 40, height: 40, borderRadius: 8, justifyContent: 'center', alignItems: 'center' }} onPress={() => setTempIconOffset(Math.max(-40, tempIconOffset - 4))}>
+                <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#000' }}>↑</Text>
+              </TouchableOpacity>
+              <Text style={{ fontSize: 20, color: theme.white, marginHorizontal: 20, fontWeight: 'bold' }}>{tempIconOffset}</Text>
+              <TouchableOpacity style={{ backgroundColor: '#8DE8C7', width: 40, height: 40, borderRadius: 8, justifyContent: 'center', alignItems: 'center' }} onPress={() => setTempIconOffset(Math.min(40, tempIconOffset + 4))}>
+                <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#000' }}>↓</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: 12 }}>
+              <TouchableOpacity style={{ padding: 12 }} onPress={() => setIconSizeModalVisible(false)}>
+                <Text style={{ color: theme.gray, fontWeight: 'bold' }}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={{ backgroundColor: theme.blue, paddingVertical: 12, paddingHorizontal: 20, borderRadius: 8 }} onPress={() => {
+                handleSetDefaultIconSize(tempIconSize);
+                handleSetDefaultIconOffset(tempIconOffset);
+                setIconSizeModalVisible(false);
               }}>
                 <Text style={{ color: '#FFF', fontWeight: 'bold' }}>Salvar</Text>
               </TouchableOpacity>

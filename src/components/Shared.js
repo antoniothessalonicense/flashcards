@@ -36,44 +36,53 @@ export function FormattedText({ text, style, numberOfLines }) {
   const elements = [];
   let elementIndex = 0;
 
-  const inlineUIRegex = /<icone(?:\s+size=(\d+))?\s*>([\s\S]*?)<\/icone>|<ui>([\s\S]*?)<\/ui>/ig;
+  const inlineUIRegex = /<icone(?:\s+size=(\d+))?\s*>([\s\S]*?)<\/icone>|<ui(?:\s+size=(\d+))?\s*>([\s\S]*?)<\/ui>/ig;
 
-  const renderTextWithInlineUI = (txt) => {
+  const renderTextWithInlineUI = (txt, parentIndex) => {
     if (!txt) return null;
     const out = [];
     let last = 0;
     let m;
+    let localIndex = 0;
     while ((m = inlineUIRegex.exec(txt)) !== null) {
       if (m.index > last) {
-        out.push(<Text key={`t-${last}-${elementIndex}`}>{txt.substring(last, m.index)}</Text>);
+        out.push(<Text key={`t-${parentIndex}-${localIndex++}`}>{txt.substring(last, m.index)}</Text>);
       }
       if (m[2] !== undefined) {
         const size = m[1] ? parseInt(m[1], 10) : 20;
         const iconName = m[2].trim();
-        out.push(<Ionicons key={`icon-${elementIndex}`} name={iconName} size={size} />);
-      } else if (m[3] !== undefined) {
-        const uiType = m[3].trim().toLowerCase();
-        const currentId = `ui-${elementIndex}`;
+        out.push(<Ionicons key={`icon-${parentIndex}-${localIndex++}`} name={iconName} size={size} />);
+      } else if (m[4] !== undefined) {
+        const size = m[3] ? parseInt(m[3], 10) : 20;
+        const uiType = m[4].trim().toLowerCase();
+        const currentId = `ui-${parentIndex}-${localIndex}`;
+        const uiStyle = { display: 'inline-flex', justifyContent: 'center', marginHorizontal: 4 };
+        if (size > 0) {
+          uiStyle.width = size + 8;
+          uiStyle.height = size + 8;
+        }
         switch (uiType) {
           case 'checkbox':
             out.push(
-              <View key={currentId} style={{ display: 'inline-flex', justifyContent: 'center', marginHorizontal: 4 }}>
+              <View key={currentId} style={uiStyle}>
                 <Checkbox
                   value={!!uiStates[currentId]}
                   onValueChange={(val) => setUiStates(prev => ({ ...prev, [currentId]: val }))}
                 />
               </View>
             );
+            localIndex++;
             break;
           case 'switch':
             out.push(
-              <View key={currentId} style={{ display: 'inline-flex', justifyContent: 'center', marginHorizontal: 4 }}>
+              <View key={currentId} style={uiStyle}>
                 <Switch
                   value={!!uiStates[currentId]}
                   onValueChange={(val) => setUiStates(prev => ({ ...prev, [currentId]: val }))}
                 />
               </View>
             );
+            localIndex++;
             break;
           case 'button':
             out.push(
@@ -81,22 +90,23 @@ export function FormattedText({ text, style, numberOfLines }) {
                 <Button title="Botão" onPress={() => {}} />
               </View>
             );
+            localIndex++;
             break;
           default:
             out.push(<Text key={currentId}>[Unknown UI: {uiType}]</Text>);
+            localIndex++;
         }
       }
       last = inlineUIRegex.lastIndex;
-      elementIndex++;
     }
-    if (last < txt.length) out.push(<Text key={`t-${last}-${elementIndex}`}>{txt.substring(last)}</Text>);
+    if (last < txt.length) out.push(<Text key={`t-${parentIndex}-${localIndex}`}>{txt.substring(last)}</Text>);
     return out;
   };
 
   parts.forEach((p, idx) => {
     if (p.type === 'text') {
-      const rendered = renderTextWithInlineUI(p.text);
-      rendered.forEach((r) => elements.push(r));
+      const rendered = renderTextWithInlineUI(p.text, idx);
+      rendered.forEach((r, childIndex) => elements.push(React.cloneElement(r, { key: `text-${idx}-${childIndex}` })));
     } else if (p.type === 'tag') {
       const handler = TagRegistry.getTagHandlers()[p.tag];
       if (handler && typeof handler.render === 'function') {

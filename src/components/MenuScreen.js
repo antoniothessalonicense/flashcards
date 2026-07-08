@@ -14,8 +14,10 @@ export const MENU_ITEMS = [
   { icon: '☁️', label: 'Backup no Google Docs', id: 'backup_docs' },
   null,
   { icon: '⚙️', label: 'Configurações', id: 'settings' },
+  { icon: '📏', label: 'Tamanho padrão do ícone', id: 'icon_size' },
   { icon: 'Aa', label: 'Tamanho do Texto', id: 'text_size' },
   { icon: '🌙', label: 'Alternar para o Tema Noturno', special: true },
+  { icon: '🎨', label: 'Temas da Tela', id: 'themes' },
   { icon: '❓', label: 'Ajuda', id: 'help' },
   { icon: '📧', label: 'Contato', id: 'contact' },
 ];

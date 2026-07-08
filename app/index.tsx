@@ -15,11 +15,15 @@ export default function LoginScreen() {
       await GoogleSignin.hasPlayServices();
       const userInfo = await GoogleSignin.signIn();
       
-      console.log('Login bem-sucedido! Dados do Usuário:', userInfo);
-      Alert.alert(
-        'Bem-vindo!',
-        `Login realizado com sucesso.\nUsuário: ${userInfo.user.name}`
-      );
+      if (userInfo.type === 'success') {
+        console.log('Login bem-sucedido! Dados do Usuário:', userInfo.data);
+        Alert.alert(
+          'Bem-vindo!',
+          `Login realizado com sucesso.\nUsuário: ${userInfo.data.user.name}`
+        );
+      } else {
+        console.log('Login falhou ou foi cancelado.', userInfo);
+      }
     } catch (error: any) {
       if (error.code === statusCodes.SIGN_IN_CANCELLED) {
         console.log('Login cancelado pelo usuário.');

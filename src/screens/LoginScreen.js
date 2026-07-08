@@ -26,7 +26,9 @@ export default function LoginScreen() {
       const userInfo = await GoogleSignin.signIn();
       
       // Ao obter as informações com sucesso, atualizamos o estado global
-      setUser(userInfo.user); 
+      if (userInfo.type === 'success') {
+        setUser(userInfo.data.user); 
+      } 
     } catch (error) {
       if (error.code === statusCodes.SIGN_IN_CANCELLED) {
         // Usuário cancelou o login

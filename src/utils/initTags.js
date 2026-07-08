@@ -12,7 +12,7 @@ TagRegistry.registerTag('en', {
 TagRegistry.registerTag('mudo', {
   parse: /<mudo>([\s\S]*?)<\/mudo>/ig,
   ttsBehavior: 'ignore',
-  render: () => ({ type: 'text', props: { children: '' } }),
+  render: (content) => ({ type: 'text', props: { children: content } }),
 });
 
 module.exports = TagRegistry;

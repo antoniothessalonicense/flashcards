@@ -157,7 +157,7 @@ export async function buildCycleCards(config) {
   const setsAtrasados = await db.select()
     .from(sets)
     .where(sql`${sets.next_review_date} <= ${now}`)
-    .orderBy(sql`${sets.priority} ASC`, sql`${sets.next_review_date} ASC`)
+    .orderBy(sql`${sets.next_review_date} ASC`)
     .limit(config.qtdConjuntosAtrasados);
 
   for (const s of setsAtrasados) {

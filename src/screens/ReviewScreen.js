@@ -5,6 +5,7 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import * as Speech from 'expo-speech';
 import { useLiveQuery } from 'drizzle-orm/expo-sqlite';
 import { eq, lte, or, asc, inArray } from 'drizzle-orm';
+import { Ionicons } from '@expo/vector-icons';
 import { ProgressBar, FormattedText } from '../components/Shared';
 const { playMixedTTS } = require('../utils/tts');
 import LottieView from 'lottie-react-native';
@@ -23,7 +24,9 @@ export function ReviewScreenComponent({ deck, cards = [], isAllMode = false }) {
     autoPlayAudio, cardFontSize, 
     preferredVoices, handleSetPreferredVoice,
     incrementDailyReview,
-    showStopwatch
+    showStopwatch,
+    defaultIconSize,
+    defaultIconOffset
   } = useContext(AppContext);
   
   // ── Lendo o Estado Global (Zustand) ──
@@ -76,6 +79,48 @@ export function ReviewScreenComponent({ deck, cards = [], isAllMode = false }) {
     return `${m}:${s}`;
   };
 
+  // Mapa de aliases para nomes de ícone inválidos no Ionicons
+  const ICON_ALIASES = {
+    'house': 'home',
+    'house-outline': 'home-outline',
+    'gear': 'settings',
+    'gear-outline': 'settings-outline',
+    'check': 'checkmark',
+    'clock': 'time',
+    'clock-outline': 'time-outline',
+  };
+
+  const extractTopVisual = (text) => {
+    if (!text) return { iconName: 'brain', emoji: null, size: defaultIconSize, offset: defaultIconOffset, trimmedText: text };
+    const iconRegex = /<icone(?:\s+size=(\d+))?\s*>([\s\S]*?)<\/icone>/i;
+    const match = iconRegex.exec(text);
+    if (match) {
+      const size = match[1]
+        ? Math.min(Math.max(parseInt(match[1], 10), 24), 120)
+        : defaultIconSize;
+      const rawIcon = match[2].trim() || 'help-circle';
+      const iconName = ICON_ALIASES[rawIcon] || rawIcon;
+      const trimmedText = text.replace(match[0], '').trim();
+      return { iconName, emoji: null, size, offset: defaultIconOffset, trimmedText };
+    }
+
+    try {
+      // Extrair Emojis da string (incluindo bandeiras)
+      const emojiRegex = /(\p{Extended_Pictographic}|\p{Regional_Indicator}{2})/gu;
+      const emojis = text.match(emojiRegex);
+      if (emojis && emojis.length > 0) {
+        const emojiStr = emojis.join('');
+        const trimmedText = text.replace(emojiRegex, '').trim();
+        // Aumentamos levemente o tamanho do emoji no lugar do icone
+        return { iconName: null, emoji: emojiStr, size: Math.max(defaultIconSize, 64), offset: defaultIconOffset, trimmedText };
+      }
+    } catch (e) {
+      // Ignorar erros caso a regex não seja suportada
+    }
+
+    return { iconName: null, emoji: null, size: defaultIconSize, offset: defaultIconOffset, trimmedText: text };
+  };
+
   const onClose = () => navigation.goBack();
   const onRateCard = async (cardId, difficulty) => {
     try { await updateCardDifficulty(cardId, difficulty); } catch (e) { console.error(e); }
@@ -95,7 +140,9 @@ export function ReviewScreenComponent({ deck, cards = [], isAllMode = false }) {
   }, [index, localCards.length, lottieAnim]);
 
   useEffect(() => {
-    Speech.getAvailableVoicesAsync().then(setAvailableVoices);
+    Speech.getAvailableVoicesAsync()
+      .then(setAvailableVoices)
+      .catch(() => console.log('TTS não disponível neste dispositivo'));
   }, []);
 
   useEffect(() => {
@@ -106,7 +153,7 @@ export function ReviewScreenComponent({ deck, cards = [], isAllMode = false }) {
         ? (currentCard?.backLanguage || deck?.backLanguage || 'en-US')
         : (currentCard?.frontLanguage || deck?.frontLanguage || 'pt-BR');
       const textToSpeak = flipped ? currentCard.back : currentCard.front;
-      playMixedTTS(textToSpeak, currentLang, preferredVoices);
+      playMixedTTS(textToSpeak, { defaultLang: currentLang, preferredVoices });
     }
   }, [index, flipped, autoPlayAudio, localCards, deck, preferredVoices]);
 
@@ -136,7 +183,7 @@ export function ReviewScreenComponent({ deck, cards = [], isAllMode = false }) {
     }
     
     Speech.stop();
-    playMixedTTS(textToSpeak, currentLang, preferredVoices, nextVoice.identifier);
+    playMixedTTS(textToSpeak, { defaultLang: currentLang, voice: nextVoice.identifier, preferredVoices });
   };
 
   // Sincroniza o estado do coração ao trocar de card
@@ -289,11 +336,12 @@ export function ReviewScreenComponent({ deck, cards = [], isAllMode = false }) {
         </View>
         <Text style={[styles.progressText, { color: C.gray }]}>{index} / {localCards.length}</Text>
         {showStopwatch && (
-          <View style={{ flexDirection: 'row', alignItems: 'center', marginLeft: 8, backgroundColor: C.cardBtnBg, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12 }}>
+          <View style={styles.topRightInfoRow}>
             <Text style={{ fontSize: 12, marginRight: 4 }}>⏱️</Text>
             <Text style={{ color: C.white, fontSize: 14, fontWeight: 'bold' }}>{formatTime(elapsedSeconds)}</Text>
           </View>
         )}
+
       </View>
 
       <View style={{ alignItems: 'center', paddingBottom: 8 }}>
@@ -311,7 +359,7 @@ export function ReviewScreenComponent({ deck, cards = [], isAllMode = false }) {
             ? (card?.backLanguage || deck?.backLanguage || 'en-US')
             : (card?.frontLanguage || deck?.frontLanguage || 'pt-BR');
           const textToSpeak = flipped ? card.back : card.front;
-          playMixedTTS(textToSpeak, currentLang, preferredVoices);
+          playMixedTTS(textToSpeak, { defaultLang: currentLang, preferredVoices });
         }}>
           <Text style={{ fontSize: 22 }}>🔊</Text>
         </TouchableOpacity>
@@ -323,14 +371,32 @@ export function ReviewScreenComponent({ deck, cards = [], isAllMode = false }) {
         </TouchableOpacity>
 
         <View style={styles.cardContent}>
-          <FormattedText 
-            style={[
-              flipped ? styles.cardBack : styles.cardFront, 
-              { color: C.white },
-              cardFontSize ? { fontSize: flipped ? Math.max(14, cardFontSize * 0.75) : cardFontSize } : {}
-            ]} 
-            text={flipped ? card.back : card.front}
-          />
+          {(() => {
+            const { iconName, emoji, size, offset, trimmedText } = extractTopVisual(flipped ? card.back : card.front);
+            return (
+              <>
+                {iconName ? (
+                  <View style={[styles.cardVisualBlock, { marginTop: offset }] }>
+                    <Ionicons name={iconName} size={size} color={C.white} />
+                  </View>
+                ) : emoji ? (
+                  <View style={[styles.cardVisualBlock, { marginTop: offset }] }>
+                    <Text style={{ fontSize: size, textAlign: 'center' }}>{emoji}</Text>
+                  </View>
+                ) : null}
+                <View style={styles.cardTextWrapper}>
+                  <FormattedText 
+                    style={[
+                      flipped ? styles.cardBack : styles.cardFront, 
+                      { color: C.white },
+                      cardFontSize ? { fontSize: flipped ? Math.max(14, cardFontSize * 0.75) : cardFontSize } : {}
+                    ]} 
+                    text={trimmedText || (flipped ? card.back : card.front)}
+                  />
+                </View>
+              </>
+            );
+          })()}
         </View>
 
         <Modal visible={editModalVisible} animationType="slide" transparent={true} onRequestClose={() => setEditModalVisible(false)}>
@@ -440,6 +506,7 @@ export function ReviewScreenComponent({ deck, cards = [], isAllMode = false }) {
           <Text style={[styles.ratingBtnText, { color: C.white }]}>Fácil</Text>
         </TouchableOpacity>
       </View>
+
     </View>
   );
 }
@@ -490,7 +557,19 @@ export default function ReviewScreen() {
       const fetchMulti = async () => {
         try {
           const now = Date.now();
-          let query = db.select().from(cards);
+          let query = db.select({
+            id: cards.id,
+            set_id: cards.set_id,
+            front: cards.front,
+            back: cards.back,
+            next_review_date: cards.next_review_date,
+            ease_factor: cards.ease_factor,
+            difficultyStatus: cards.difficultyStatus,
+            isImportant: cards.isImportant,
+            tag: cards.tag,
+            frontLanguage: sets.frontLanguage,
+            backLanguage: sets.backLanguage,
+          }).from(cards).innerJoin(sets, eq(cards.set_id, sets.id));
 
           if (reviewAll) {
             query = query.where(or(eq(cards.difficultyStatus, 'hard'), lte(cards.next_review_date, now)));
@@ -540,6 +619,9 @@ const styles = StyleSheet.create({
   progressText: { fontSize: 12, paddingHorizontal: 8 },
   reviewCard: { flex: 1, borderRadius: 16, margin: 16 },
   cardContent: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },
+  cardVisualBlock: { marginBottom: 12, alignItems: 'center', justifyContent: 'center' },
+  cardTextWrapper: { width: '100%', flex: 1, justifyContent: 'center', alignItems: 'center' },
+  topRightInfoRow: { flexDirection: 'row', alignItems: 'center', marginLeft: 8, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12 },
   cardFront: { fontSize: 24, fontWeight: 'bold', textAlign: 'center' },
   cardBack: { fontSize: 18, textAlign: 'center' },
   cardHint: { color: '#ffffff44', textAlign: 'center', paddingBottom: 60, fontSize: 12 },

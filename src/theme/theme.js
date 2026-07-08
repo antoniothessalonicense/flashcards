@@ -1,17 +1,42 @@
 import { StyleSheet } from 'react-native';
 
-export const getTheme = (isDark) => ({
-  bg: isDark ? '#1A1A1A' : '#F5F5F5',
-  card: isDark ? '#2A2A2A' : '#FFFFFF',
-  blue: '#3B9EFF',
-  purple: '#7B5CF5',
-  white: isDark ? '#FFFFFF' : '#000000',
-  gray: '#888888',
-  sep: isDark ? '#444444' : '#DDDDDD',
-  reviewCard: isDark ? '#3A4A5C' : '#E3F2FD',
-  cardBtnBg: isDark ? '#ffffff22' : '#00000011',
-  favIcon: isDark ? '#ffffff55' : '#00000055',
-});
+export const getTheme = (themeName) => {
+  if (typeof themeName === 'boolean') themeName = themeName ? 'dark' : 'light';
+  
+  const themes = {
+    light: {
+      bg: '#F5F5F5', card: '#FFFFFF', blue: '#3B9EFF', purple: '#7B5CF5',
+      white: '#000000', gray: '#888888', sep: '#DDDDDD', reviewCard: '#E3F2FD',
+      cardBtnBg: '#00000011', favIcon: '#00000055',
+    },
+    dark: {
+      bg: '#1A1A1A', card: '#2A2A2A', blue: '#3B9EFF', purple: '#7B5CF5',
+      white: '#FFFFFF', gray: '#888888', sep: '#444444', reviewCard: '#3A4A5C',
+      cardBtnBg: '#ffffff22', favIcon: '#ffffff55',
+    },
+    neon_vibrant: {
+      bg: '#0A0A0A', card: '#1A1A1A', blue: '#00E5FF', purple: '#D500F9',
+      white: '#FFFFFF', gray: '#888888', sep: '#333333', reviewCard: '#220044',
+      cardBtnBg: '#ffffff22', favIcon: '#ffffff55',
+    },
+    earth_tones: {
+      bg: '#2B2521', card: '#3E342F', blue: '#B26A4F', purple: '#8E5B5B',
+      white: '#E8E0D5', gray: '#A2968D', sep: '#5E524A', reviewCard: '#3E4B35',
+      cardBtnBg: '#ffffff11', favIcon: '#ffffff44',
+    },
+    arctic_cool: {
+      bg: '#F0F4F8', card: '#FFFFFF', blue: '#29B6F6', purple: '#B39DDB',
+      white: '#37474F', gray: '#78909C', sep: '#CFD8DC', reviewCard: '#E1F5FE',
+      cardBtnBg: '#00000011', favIcon: '#00000055',
+    },
+    pastel_dreams: {
+      bg: '#FFF8E1', card: '#FFFFFF', blue: '#F48FB1', purple: '#F8BBD0',
+      white: '#5D4037', gray: '#8D6E63', sep: '#FFE082', reviewCard: '#FFF0F5',
+      cardBtnBg: '#00000011', favIcon: '#00000055',
+    }
+  };
+  return themes[themeName] || themes['dark'];
+};
 
 export const getStyles = (C) => StyleSheet.create({
   screen: { flex: 1, backgroundColor: C.bg },

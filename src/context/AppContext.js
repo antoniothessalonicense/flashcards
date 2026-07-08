@@ -10,8 +10,19 @@ export const AppContext = createContext();
 
 export const AppProvider = ({ children }) => {
   const [user, setUser] = useState(null);
-  const [isDark, setIsDark] = useState(true);
-  const theme = getTheme(isDark);
+  const [themeName, setThemeName] = useState('dark');
+  const isDark = ['dark', 'neon_vibrant', 'earth_tones'].includes(themeName);
+
+  const setAppTheme = async (name) => {
+    setThemeName(name);
+    await AsyncStorage.setItem('appTheme', name);
+  };
+
+  const setIsDark = (val) => {
+    setAppTheme(val ? 'dark' : 'light');
+  };
+
+  const theme = getTheme(themeName);
   const styles = getStyles(theme);
 
   const [cardsReviewedToday, setCardsReviewedToday] = useState(0);
@@ -21,6 +32,8 @@ export const AppProvider = ({ children }) => {
   const [cardFontSize, setCardFontSize] = useState(24);
   const [preferredVoices, setPreferredVoices] = useState({});
   const [showStopwatch, setShowStopwatchState] = useState(true);
+  const [defaultIconSize, setDefaultIconSize] = useState(80);
+  const [defaultIconOffset, setDefaultIconOffset] = useState(0);
 
   const calculateTargetDecks = async () => {
     try {
@@ -69,7 +82,9 @@ export const AppProvider = ({ children }) => {
         const savedFontSize = await AsyncStorage.getItem('cardFontSize');
         const savedVoices = await AsyncStorage.getItem('preferredVoices');
         const savedStopwatch = await AsyncStorage.getItem('showStopwatch');
+        const savedTheme = await AsyncStorage.getItem('appTheme');
         
+        if (savedTheme) setThemeName(savedTheme);
         if (savedAutoPlay !== null) setAutoPlayAudio(savedAutoPlay === 'true');
         if (savedGoal) setDailyGoal(parseInt(savedGoal, 10));
         if (savedFontSize) setCardFontSize(parseInt(savedFontSize, 10));
@@ -89,6 +104,10 @@ export const AppProvider = ({ children }) => {
         if (savedStopwatch !== null) {
           setShowStopwatchState(savedStopwatch === 'true');
         }
+        const savedIconSize = await AsyncStorage.getItem('defaultIconSize');
+        if (savedIconSize) setDefaultIconSize(parseInt(savedIconSize, 10));
+        const savedIconOffset = await AsyncStorage.getItem('defaultIconOffset');
+        if (savedIconOffset) setDefaultIconOffset(parseInt(savedIconOffset, 10));
       } catch (e) {
         console.log("Erro ao carregar progresso:", e);
       }
@@ -109,6 +128,16 @@ export const AppProvider = ({ children }) => {
     const newPrefs = { ...preferredVoices, [lang]: voiceId };
     setPreferredVoices(newPrefs);
     await AsyncStorage.setItem('preferredVoices', JSON.stringify(newPrefs));
+  };
+
+  const handleSetDefaultIconSize = async (size) => {
+    setDefaultIconSize(size);
+    await AsyncStorage.setItem('defaultIconSize', size.toString());
+  };
+
+  const handleSetDefaultIconOffset = async (offset) => {
+    setDefaultIconOffset(offset);
+    await AsyncStorage.setItem('defaultIconOffset', offset.toString());
   };
 
   const updateSettings = async (newGoal, newFontSize, newAutoPlay) => {
@@ -138,6 +167,7 @@ export const AppProvider = ({ children }) => {
     <AppContext.Provider value={{
       user, setUser,
       isDark, setIsDark,
+      themeName, setAppTheme,
       theme, styles,
       cardsReviewedToday, incrementDailyReview,
       dailyGoal, updateSettings,
@@ -145,7 +175,9 @@ export const AppProvider = ({ children }) => {
       autoPlayAudio, setAutoPlayAudio, handleSetAutoPlayAudio,
       cardFontSize, setCardFontSize,
       preferredVoices, handleSetPreferredVoice,
-      showStopwatch, setShowStopwatch
+      showStopwatch, setShowStopwatch,
+      defaultIconSize, handleSetDefaultIconSize,
+      defaultIconOffset, handleSetDefaultIconOffset
     }}>
       {children}
     </AppContext.Provider>

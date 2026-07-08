@@ -37,18 +37,19 @@ async function playMixedTTS(text = '', options = {}) {
     if (p.type === 'text') {
       // fala com idioma padrão
       // eslint-disable-next-line no-await-in-loop
-      await _speak(p.text, { language: options.defaultLang });
+      await _speak(p.text, { language: options.defaultLang, voice: options.voice || options.preferredVoices?.[options.defaultLang] });
     } else if (p.type === 'tag') {
       const handler = TagRegistry.getTagHandlers()[p.tag];
       const behavior = handler?.ttsBehavior || 'speak';
       if (behavior === 'ignore') continue;
       if (behavior === 'langSwitch') {
         const lang = handler.defaultLang || options.defaultLang || 'en-US';
+        const voice = options.preferredVoices?.[lang];
         // eslint-disable-next-line no-await-in-loop
-        await _speak(p.text, { language: lang });
+        await _speak(p.text, { language: lang, voice });
       } else {
         // eslint-disable-next-line no-await-in-loop
-        await _speak(p.text, { language: options.defaultLang });
+        await _speak(p.text, { language: options.defaultLang, voice: options.voice || options.preferredVoices?.[options.defaultLang] });
       }
     }
   }
