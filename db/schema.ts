@@ -8,10 +8,12 @@ export const sets = sqliteTable('sets', {
   frontLanguage: text('frontLanguage').notNull().default('pt-BR'),
   backLanguage: text('backLanguage').notNull().default('en-US'),
   next_review_date: integer('next_review_date').notNull().default(0),
+  last_review_date: integer('last_review_date').notNull().default(0),
   totalReviews: integer('totalReviews').notNull().default(0),
   priority: integer('priority').notNull().default(0),
 }, (table) => ({
   idx_next_review_date: index('idx_sets_next_review_date').on(table.next_review_date),
+  idx_last_review_date: index('idx_sets_last_review_date').on(table.last_review_date),
 }));
 
 // Tabela de cards
@@ -48,6 +50,7 @@ export const cicloConfigs = sqliteTable('ciclo_configs', {
   globalTagLimit: integer('globalTagLimit').notNull().default(5),
   surpriseTagsCount: integer('surpriseTagsCount').notNull().default(2),
   cardsPerSurpriseTag: integer('cardsPerSurpriseTag').notNull().default(5),
+  apenasNaoAprendidosObrigatorio: integer('apenasNaoAprendidosObrigatorio').notNull().default(0),
 });
 
 export type SetsTable = typeof sets;

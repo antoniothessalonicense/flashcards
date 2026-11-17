@@ -11,6 +11,7 @@ import { Ionicons } from '@expo/vector-icons';
 
 function StatisticsScreen({ totalCardsCount, memorizedCardsCount, totalDecksCount, bestDecks }) {
   const { theme, cardsReviewedToday } = useContext(AppContext);
+  const styles = createStyles(theme);
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
 
@@ -24,10 +25,10 @@ function StatisticsScreen({ totalCardsCount, memorizedCardsCount, totalDecksCoun
         
         {/* Header */}
         <View style={styles.header}>
-          <TouchableOpacity onPress={onClose} style={{ paddingRight: 10 }}>
-            <Ionicons name="arrow-back" size={28} color="#333" />
+          <TouchableOpacity onPress={onClose} style={{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }}>
+            <Ionicons name="arrow-back" size={24} color={theme.appBarText} />
           </TouchableOpacity>
-          <Ionicons name="person-circle" size={40} color="#333" />
+          <Ionicons name="person-circle" size={36} color={theme.appBarText} />
           <Text style={styles.headerTitle}>Estatísticas - Maria L.</Text>
         </View>
 
@@ -80,7 +81,7 @@ function StatisticsScreen({ totalCardsCount, memorizedCardsCount, totalDecksCoun
         </View>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalList}>
           {bestDecks.length === 0 ? (
-            <Text style={{ color: '#666', marginLeft: 4 }}>Nenhum deck encontrado.</Text>
+            <Text style={{ color: theme.textSecondary, marginLeft: 4 }}>Nenhum deck encontrado.</Text>
           ) : (
             bestDecks.map((deck) => (
               <View key={deck.id} style={styles.miniCard}>
@@ -101,10 +102,10 @@ function StatisticsScreen({ totalCardsCount, memorizedCardsCount, totalDecksCoun
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F4F4F6', // Cinza claro do fundo
+    backgroundColor: theme.bg,
   },
   scrollContent: {
     padding: 16,
@@ -113,39 +114,39 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 20,
-    marginTop: 10,
+    minHeight: 56,
+    marginBottom: 16,
+    marginHorizontal: -16,
+    marginTop: -16,
+    paddingHorizontal: 8,
+    backgroundColor: theme.appBar,
   },
   headerTitle: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#1A1A1A',
+    color: theme.appBarText,
     marginLeft: 10,
   },
   card: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
+    backgroundColor: theme.surface,
+    borderColor: theme.border,
+    borderWidth: 1,
+    borderRadius: 14,
     padding: 20,
     marginBottom: 16,
     // Sombras
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 3,
   },
   cardTitle: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#333',
+    color: theme.textSecondary,
     textAlign: 'center',
     marginBottom: 20,
-    letterSpacing: 0.5,
   },
   cardTitleLeft: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: '#1A1A1A',
+    color: theme.textPrimary,
     marginBottom: 16,
   },
   gridContainer: {
@@ -159,9 +160,9 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   bigNumber: {
-    fontSize: 32,
+    fontSize: 24,
     fontWeight: '800',
-    color: '#1A1A1A',
+    color: theme.textPrimary,
     marginBottom: 4,
   },
   unit: {
@@ -170,7 +171,7 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: 12,
-    color: '#666',
+    color: theme.textSecondary,
     textAlign: 'center',
     lineHeight: 16,
   },
@@ -194,12 +195,12 @@ const styles = StyleSheet.create({
   },
   barFill: {
     width: '100%',
-    backgroundColor: '#34C759', // Verde iOS padrão
+    backgroundColor: theme.accent,
     borderRadius: 4,
   },
   barLabel: {
     fontSize: 10,
-    color: '#888',
+    color: theme.textSecondary,
     marginTop: 8,
   },
   // Lista Horizontal
@@ -211,21 +212,18 @@ const styles = StyleSheet.create({
     paddingRight: 16,
   },
   miniCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: theme.surface,
+    borderColor: theme.border,
+    borderWidth: 1,
     borderRadius: 12,
     padding: 16,
     marginRight: 12,
     minWidth: 180,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
   },
   miniCardTitle: {
     fontSize: 14,
     fontWeight: 'bold',
-    color: '#333',
+    color: theme.textPrimary,
     marginBottom: 12,
   },
   progressRow: {
@@ -235,19 +233,19 @@ const styles = StyleSheet.create({
   progressBarBg: {
     flex: 1,
     height: 6,
-    backgroundColor: '#E0E0E0',
+    backgroundColor: theme.border,
     borderRadius: 3,
     marginRight: 8,
   },
   progressBarFill: {
     height: '100%',
-    backgroundColor: '#34C759',
+    backgroundColor: theme.accent,
     borderRadius: 3,
   },
   progressText: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#666',
+    color: theme.textSecondary,
   }
 });
 

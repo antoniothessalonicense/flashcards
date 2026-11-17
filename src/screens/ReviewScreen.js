@@ -19,7 +19,7 @@ import { updateCardDifficulty, toggleCardImportant, updateCard } from '../../dbS
 // Componente de revisão de flashcards
 export function ReviewScreenComponent({ deck, cards = [], isAllMode = false }) {
   const { 
-    theme, styles: globalStyles, 
+    theme, isDark, styles: globalStyles,
     cardsReviewedToday, dailyGoal, 
     autoPlayAudio, cardFontSize, 
     preferredVoices, handleSetPreferredVoice,
@@ -38,6 +38,7 @@ export function ReviewScreenComponent({ deck, cards = [], isAllMode = false }) {
     : dailyGoal;
 
   const C = theme;
+  const ratingTextColor = isDark ? C.bg : C.appBarText;
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
   const route = useRoute();
@@ -297,25 +298,25 @@ export function ReviewScreenComponent({ deck, cards = [], isAllMode = false }) {
         )}
         <Text style={[styles.doneTitle, { color: C.white }]}>Concluído!</Text>
         <View style={styles.ratingsRow}>
-          <View style={[styles.ratingChip, { backgroundColor: '#F44336' }]}> 
-            <Text style={[styles.ratingChipText, { color: C.white }]}>Difícil: {ratings.hard}</Text>
+          <View style={[styles.ratingChip, { backgroundColor: C.warning }]}>
+            <Text style={[styles.ratingChipText, { color: ratingTextColor }]}>Difícil: {ratings.hard}</Text>
           </View>
-          <View style={[styles.ratingChip, { backgroundColor: '#4CAF50' }]}> 
-            <Text style={[styles.ratingChipText, { color: C.white }]}>Bom: {ratings.good}</Text>
+          <View style={[styles.ratingChip, { backgroundColor: C.success }]}>
+            <Text style={[styles.ratingChipText, { color: ratingTextColor }]}>Bom: {ratings.good}</Text>
           </View>
           <View style={[styles.ratingChip, { backgroundColor: C.blue }]}> 
-            <Text style={[styles.ratingChipText, { color: C.white }]}>Fácil: {ratings.easy}</Text>
+            <Text style={[styles.ratingChipText, { color: ratingTextColor }]}>Fácil: {ratings.easy}</Text>
           </View>
         </View>
         <Text style={{ color: C.gray, marginBottom: 24, fontSize: 16 }}>Meta diária: {cardsReviewedToday} / {effectiveDailyGoal}</Text>
         <View style={{ flexDirection: 'row', gap: 12, marginTop: 16, flexWrap: 'wrap', justifyContent: 'center' }}>
-          <TouchableOpacity style={[styles.doneActionBtn, { backgroundColor: C.gray }]} onPress={onClose}>
-            <Text style={[styles.backBtnText, { color: C.white }]}>Voltar</Text>
+          <TouchableOpacity style={[styles.doneActionBtn, { backgroundColor: C.border }]} onPress={onClose}>
+            <Text style={[styles.backBtnText, { color: C.textPrimary }]}>Voltar</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={[styles.doneActionBtn, { backgroundColor: '#FF9800' }]} onPress={() => {
+          <TouchableOpacity style={[styles.doneActionBtn, { backgroundColor: C.accent }]} onPress={() => {
             setIndex(0); setRatings({ hard: 0, good: 0, easy: 0 }); setFlipped(false); setElapsedSeconds(0);
           }}>
-            <Text style={[styles.backBtnText, { color: C.white }]}>Repetir</Text>
+            <Text style={[styles.backBtnText, { color: ratingTextColor }]}>Repetir</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -323,52 +324,59 @@ export function ReviewScreenComponent({ deck, cards = [], isAllMode = false }) {
   }
 
   const card = localCards[index];
-  const progress = (index / Math.max(1, localCards.length)) * 100;
+  const progress = ((index + 1) / Math.max(1, localCards.length)) * 100;
 
   return (
     <View style={[styles.screen, { paddingTop: insets.top, backgroundColor: C.bg }]}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={onClose} style={styles.hBtn}>
-          <Text style={[styles.hIcon, { color: C.white }]}>✕</Text>
+      <View style={[styles.header, { minHeight: 68, backgroundColor: C.appBar }]}>
+        <TouchableOpacity onPress={onClose} style={styles.hBtn} accessibilityLabel="Fechar revisão">
+          <Ionicons name="close" size={22} color={C.appBarText} />
         </TouchableOpacity>
-        <View style={{ flex: 1, justifyContent: 'center', paddingHorizontal: 8 }}>
-          <ProgressBar value={progress} color={C.blue} theme={theme} />
+        <View style={styles.progressBlock}>
+          <View style={styles.progressLabels}>
+            <Text numberOfLines={1} style={[styles.progressCaption, { color: C.appBarText }]}>{isAllMode ? deck?.title : 'Revisão'}</Text>
+            <Text style={[styles.progressText, { color: C.appBarText }]}>{index + 1} / {localCards.length}</Text>
+          </View>
+          <ProgressBar value={progress} color={C.accent} theme={theme} />
         </View>
-        <Text style={[styles.progressText, { color: C.gray }]}>{index} / {localCards.length}</Text>
         {showStopwatch && (
-          <View style={styles.topRightInfoRow}>
-            <Text style={{ fontSize: 12, marginRight: 4 }}>⏱️</Text>
-            <Text style={{ color: C.white, fontSize: 14, fontWeight: 'bold' }}>{formatTime(elapsedSeconds)}</Text>
+          <View style={[styles.timerBadge, { backgroundColor: C.cardBtnBg }]}>
+            <Ionicons name="time-outline" size={15} color={C.appBarText} />
+            <Text style={{ color: C.appBarText, fontSize: 13, fontWeight: '700', fontVariant: ['tabular-nums'] }}>{formatTime(elapsedSeconds)}</Text>
           </View>
         )}
-
       </View>
 
-      <View style={{ alignItems: 'center', paddingBottom: 8 }}>
-        <Text style={{ color: C.gray, fontSize: 12 }}>Treinados hoje: {cardsReviewedToday} / {effectiveDailyGoal}</Text>
-        {isAllMode && <Text style={{ color: C.purple, fontSize: 12, fontWeight: 'bold' }}>{deck?.title}</Text>}
+      <View style={[styles.dailyProgress, { borderBottomColor: C.border }]}>
+        <Ionicons name="calendar-clear-outline" size={16} color={C.textSecondary} />
+        <Text style={[styles.dailyProgressText, { color: C.textSecondary }]}>Meta diária</Text>
+        <Text style={[styles.dailyProgressCount, { color: C.textPrimary }]}>{cardsReviewedToday} / {effectiveDailyGoal}</Text>
       </View>
 
-      <TouchableOpacity style={[styles.reviewCard, { backgroundColor: C.reviewCard }]} onPress={() => setFlipped(f => !f)} activeOpacity={0.9}>
-        <TouchableOpacity style={styles.favBtn} onPress={handleToggleFavorite}>
-          <Text style={{ fontSize: 22, color: favorited ? '#FF6B6B' : C.favIcon }}>{favorited ? '♥' : '♡'}</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.audioBtn} onPress={() => {
+      <TouchableOpacity style={[styles.reviewCard, { backgroundColor: C.surface, borderColor: C.border }]} onPress={() => setFlipped(f => !f)} activeOpacity={0.9}>
+        <View style={styles.cardToolbar}>
+          <TouchableOpacity style={[styles.cardToolButton, { backgroundColor: C.cardBtnBg }]} onPress={handleToggleFavorite} accessibilityLabel={favorited ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}>
+            <Ionicons name={favorited ? 'heart' : 'heart-outline'} size={21} color={favorited ? C.danger : C.textSecondary} />
+          </TouchableOpacity>
+          <View style={styles.cardToolGroup}>
+            <TouchableOpacity style={[styles.cardToolButton, { backgroundColor: C.cardBtnBg }]} onPress={() => {
           Speech.stop();
           const currentLang = flipped
             ? (card?.backLanguage || deck?.backLanguage || 'en-US')
             : (card?.frontLanguage || deck?.frontLanguage || 'pt-BR');
           const textToSpeak = flipped ? card.back : card.front;
           playMixedTTS(textToSpeak, { defaultLang: currentLang, preferredVoices });
-        }}>
-          <Text style={{ fontSize: 22 }}>🔊</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.changeVoiceBtn} onPress={changeVoice}>
-          <Text style={{ fontSize: 20 }}>🗣️</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.editBtn} onPress={openEditModal}>
-          <Text style={{ fontSize: 18 }}>✏️</Text>
-        </TouchableOpacity>
+            }} accessibilityLabel="Reproduzir áudio">
+              <Ionicons name="volume-high-outline" size={20} color={C.textSecondary} />
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.cardToolButton, { backgroundColor: C.cardBtnBg }]} onPress={changeVoice} accessibilityLabel="Alterar voz">
+              <Ionicons name="mic-outline" size={19} color={C.textSecondary} />
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.cardToolButton, { backgroundColor: C.cardBtnBg }]} onPress={openEditModal} accessibilityLabel="Editar cartão">
+              <Ionicons name="create-outline" size={19} color={C.textSecondary} />
+            </TouchableOpacity>
+          </View>
+        </View>
 
         <View style={styles.cardContent}>
           {(() => {
@@ -400,8 +408,8 @@ export function ReviewScreenComponent({ deck, cards = [], isAllMode = false }) {
         </View>
 
         <Modal visible={editModalVisible} animationType="slide" transparent={true} onRequestClose={() => setEditModalVisible(false)}>
-          <View style={{ flex:1, justifyContent:'center', backgroundColor: '#00000066', padding: 20 }}>
-            <View style={{ backgroundColor: C.bg, borderRadius: 12, padding: 16 }}>
+          <View style={{ flex: 1, justifyContent: 'center', backgroundColor: C.overlay, padding: 20 }}>
+            <View style={{ backgroundColor: C.surface, borderColor: C.border, borderWidth: 1, borderRadius: 14, padding: 16 }}>
               <Text style={{ color: C.white, fontWeight: 'bold', marginBottom: 8 }}>Editar Cartão</Text>
               <Text style={{ color: C.gray, marginBottom: 4 }}>Frente</Text>
               {/* Preview touchable por palavra */}
@@ -410,7 +418,7 @@ export function ReviewScreenComponent({ deck, cards = [], isAllMode = false }) {
                   const selected = focusedField === 'front' && selectionFront.start === w.start && selectionFront.end === w.end;
                   return (
                     <TouchableOpacity key={`pf-${i}`} onPress={() => { setFocusedField('front'); setSelectionFront({ start: w.start, end: w.end }); }}>
-                      <Text style={{ color: selected ? C.blue : C.white, backgroundColor: selected ? '#ffffff11' : 'transparent', paddingHorizontal: 4 }}>{w.word}</Text>
+                      <Text style={{ color: selected ? C.accent : C.textPrimary, backgroundColor: selected ? C.accentSoft : 'transparent', paddingHorizontal: 4 }}>{w.word}</Text>
                     </TouchableOpacity>
                   );
                 })}
@@ -422,7 +430,7 @@ export function ReviewScreenComponent({ deck, cards = [], isAllMode = false }) {
                 onFocus={() => setFocusedField('front')}
                 selection={selectionFront}
                 onSelectionChange={(e) => setSelectionFront(e.nativeEvent.selection)}
-                style={{ minHeight: 60, backgroundColor: '#111', color: C.white, padding: 8, borderRadius: 6 }}
+                style={{ minHeight: 60, backgroundColor: C.bg, color: C.textPrimary, borderColor: C.border, borderWidth: 1, padding: 8, borderRadius: 8 }}
               />
               <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
                 <TouchableOpacity onPress={() => {
@@ -445,7 +453,7 @@ export function ReviewScreenComponent({ deck, cards = [], isAllMode = false }) {
                   const selected = focusedField === 'back' && selectionBack.start === w.start && selectionBack.end === w.end;
                   return (
                     <TouchableOpacity key={`pb-${i}`} onPress={() => { setFocusedField('back'); setSelectionBack({ start: w.start, end: w.end }); }}>
-                      <Text style={{ color: selected ? C.blue : C.white, backgroundColor: selected ? '#ffffff11' : 'transparent', paddingHorizontal: 4 }}>{w.word}</Text>
+                      <Text style={{ color: selected ? C.accent : C.textPrimary, backgroundColor: selected ? C.accentSoft : 'transparent', paddingHorizontal: 4 }}>{w.word}</Text>
                     </TouchableOpacity>
                   );
                 })}
@@ -457,7 +465,7 @@ export function ReviewScreenComponent({ deck, cards = [], isAllMode = false }) {
                 onFocus={() => setFocusedField('back')}
                 selection={selectionBack}
                 onSelectionChange={(e) => setSelectionBack(e.nativeEvent.selection)}
-                style={{ minHeight: 60, backgroundColor: '#111', color: C.white, padding: 8, borderRadius: 6 }}
+                style={{ minHeight: 60, backgroundColor: C.bg, color: C.textPrimary, borderColor: C.border, borderWidth: 1, padding: 8, borderRadius: 8 }}
               />
               <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
                 <TouchableOpacity onPress={() => {
@@ -478,7 +486,7 @@ export function ReviewScreenComponent({ deck, cards = [], isAllMode = false }) {
                 <TouchableOpacity onPress={() => setEditModalVisible(false)} style={{ padding: 10 }}>
                   <Text style={{ color: C.gray }}>Cancelar</Text>
                 </TouchableOpacity>
-                <TouchableOpacity onPress={saveEdit} style={{ padding: 10, backgroundColor: C.blue, borderRadius: 8 }}>
+                <TouchableOpacity onPress={saveEdit} style={{ minHeight: 44, paddingHorizontal: 16, justifyContent: 'center', backgroundColor: C.accent, borderRadius: 8 }}>
                   <Text style={{ color: C.white }}>Salvar</Text>
                 </TouchableOpacity>
               </View>
@@ -486,24 +494,27 @@ export function ReviewScreenComponent({ deck, cards = [], isAllMode = false }) {
           </View>
         </Modal>
 
-        <Text style={styles.cardHint}>{flipped ? 'toque para ver o verso' : 'toque para revelar'}</Text>
-        <TouchableOpacity style={[styles.replayBtn, { backgroundColor: C.blue }]} onPress={() => setFlipped(false)}>
-          <Text style={{ color: C.white, fontSize: 16 }}>↺</Text>
+        <Text style={[styles.cardHint, { color: C.textSecondary }]}>{flipped ? 'Toque no cartão para voltar à pergunta' : 'Toque no cartão para revelar a resposta'}</Text>
+        <TouchableOpacity style={[styles.replayBtn, { backgroundColor: C.cardBtnBg }]} onPress={() => setFlipped(false)} accessibilityLabel="Voltar à pergunta">
+          <Ionicons name="refresh-outline" size={19} color={C.textSecondary} />
         </TouchableOpacity>
-        <TouchableOpacity style={[styles.nextCardBtn, { backgroundColor: C.cardBtnBg }]}> 
-          <Text style={{ color: C.white, fontSize: 16 }}>▶</Text>
+        <TouchableOpacity style={[styles.nextCardBtn, { backgroundColor: C.cardBtnBg }]}>
+          <Ionicons name="play" size={17} color={C.textSecondary} />
         </TouchableOpacity>
       </TouchableOpacity>
 
-      <View style={styles.ratingRow}>
-        <TouchableOpacity style={[styles.ratingBtn, { backgroundColor: '#F44336' }]} onPress={() => handleRate('hard')}>
-          <Text style={[styles.ratingBtnText, { color: C.white }]}>Difícil</Text>
+      <View style={[styles.ratingRow, { paddingBottom: insets.bottom + 16 }]}>
+        <TouchableOpacity style={[styles.ratingBtn, { backgroundColor: C.warning, minHeight: 48 }]} onPress={() => handleRate('hard')}>
+          <Ionicons name="alert-circle-outline" size={17} color={ratingTextColor} />
+          <Text style={[styles.ratingBtnText, { color: ratingTextColor }]}>Difícil</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={[styles.ratingBtn, { backgroundColor: '#4CAF50' }]} onPress={() => handleRate('good')}>
-          <Text style={[styles.ratingBtnText, { color: C.white }]}>Bom</Text>
+        <TouchableOpacity style={[styles.ratingBtn, { backgroundColor: C.success, minHeight: 48 }]} onPress={() => handleRate('good')}>
+          <Ionicons name="checkmark-circle-outline" size={17} color={ratingTextColor} />
+          <Text style={[styles.ratingBtnText, { color: ratingTextColor }]}>Bom</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={[styles.ratingBtn, { backgroundColor: C.blue }]} onPress={() => handleRate('easy')}>
-          <Text style={[styles.ratingBtnText, { color: C.white }]}>Fácil</Text>
+        <TouchableOpacity style={[styles.ratingBtn, { backgroundColor: C.accent, minHeight: 48 }]} onPress={() => handleRate('easy')}>
+          <Ionicons name="flash-outline" size={17} color={ratingTextColor} />
+          <Text style={[styles.ratingBtnText, { color: ratingTextColor }]}>Fácil</Text>
         </TouchableOpacity>
       </View>
 
@@ -512,6 +523,7 @@ export function ReviewScreenComponent({ deck, cards = [], isAllMode = false }) {
 }
 
 export default function ReviewScreen() {
+  const { theme } = useContext(AppContext);
   const route = useRoute();
   const { deckId, reviewAll, practiceAll, cycleCardIds } = route.params || {};
 
@@ -589,16 +601,16 @@ export default function ReviewScreen() {
   }, [deckId, reviewAll, practiceAll, cycleCardIds]);
 
   if (cycleCardIds) {
-    if (!multiCards) return <View style={{ flex: 1, backgroundColor: '#000' }} />;
+    if (!multiCards) return <View style={{ flex: 1, backgroundColor: theme.bg }} />;
     return <ReviewScreenComponent deck={{ title: 'Ciclo de Estudo' }} cards={multiCards} isAllMode={true} />;
   }
 
   if (reviewAll || practiceAll) {
-    if (!multiCards) return <View style={{ flex: 1, backgroundColor: '#000' }} />;
+    if (!multiCards) return <View style={{ flex: 1, backgroundColor: theme.bg }} />;
     return <ReviewScreenComponent deck={{ title: reviewAll ? 'Revisar Tudo' : 'Praticar Tudo' }} cards={multiCards} isAllMode={true} />;
   }
 
-  if (!deck) return <View style={{ flex: 1, backgroundColor: '#000' }} />;
+  if (!deck) return <View style={{ flex: 1, backgroundColor: theme.bg }} />;
 
   return <ReviewScreenComponent deck={deck} cards={deckCards} />;
 }
@@ -610,28 +622,33 @@ const styles = StyleSheet.create({
   ratingsRow: { flexDirection: 'row', gap: 8, marginBottom: 32 },
   ratingChip: { borderRadius: 8, paddingHorizontal: 14, paddingVertical: 8 },
   ratingChipText: { fontWeight: 'bold' },
-  backBtn: { borderRadius: 30, paddingHorizontal: 40, paddingVertical: 14 },
+  backBtn: { borderRadius: 12, paddingHorizontal: 40, paddingVertical: 14, minHeight: 44 },
   backBtnText: { fontWeight: 'bold', fontSize: 16 },
-  doneActionBtn: { borderRadius: 30, paddingHorizontal: 20, paddingVertical: 14, minWidth: 110, alignItems: 'center' },
-  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, paddingVertical: 8 },
-  hBtn: { padding: 8 },
-  hIcon: { fontSize: 40 },
-  progressText: { fontSize: 12, paddingHorizontal: 8 },
-  reviewCard: { flex: 1, borderRadius: 16, margin: 16 },
-  cardContent: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },
+  doneActionBtn: { borderRadius: 12, paddingHorizontal: 20, paddingVertical: 14, minWidth: 110, minHeight: 44, alignItems: 'center' },
+  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 8, gap: 8 },
+  hBtn: { width: 42, height: 42, borderRadius: 13, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.1)' },
+  progressBlock: { flex: 1, justifyContent: 'center', gap: 7 },
+  progressLabels: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+  progressCaption: { flex: 1, fontSize: 12, fontWeight: '600' },
+  progressText: { fontSize: 12, fontWeight: '700', fontVariant: ['tabular-nums'] },
+  timerBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 9, paddingVertical: 7, borderRadius: 10 },
+  dailyProgress: { minHeight: 38, flexDirection: 'row', alignItems: 'center', gap: 7, paddingHorizontal: 20, borderBottomWidth: StyleSheet.hairlineWidth },
+  dailyProgressText: { fontSize: 12, fontWeight: '500' },
+  dailyProgressCount: { marginLeft: 'auto', fontSize: 12, fontWeight: '700', fontVariant: ['tabular-nums'] },
+  reviewCard: { flex: 1, borderWidth: 1, borderRadius: 20, marginHorizontal: 16, marginTop: 14, marginBottom: 8, overflow: 'hidden' },
+  cardToolbar: { position: 'absolute', top: 12, left: 12, right: 12, zIndex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  cardToolGroup: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  cardToolButton: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  cardContent: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 28, paddingTop: 54, paddingBottom: 12 },
   cardVisualBlock: { marginBottom: 12, alignItems: 'center', justifyContent: 'center' },
-  cardTextWrapper: { width: '100%', flex: 1, justifyContent: 'center', alignItems: 'center' },
-  topRightInfoRow: { flexDirection: 'row', alignItems: 'center', marginLeft: 8, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12 },
+  cardTextWrapper: { width: '100%', flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12 },
+  cardSideLabel: { fontSize: 10, fontWeight: '700', textTransform: 'uppercase' },
   cardFront: { fontSize: 24, fontWeight: 'bold', textAlign: 'center' },
   cardBack: { fontSize: 18, textAlign: 'center' },
-  cardHint: { color: '#ffffff44', textAlign: 'center', paddingBottom: 60, fontSize: 12 },
-  favBtn: { position: 'absolute', top: 14, left: 14, zIndex: 1 },
-  audioBtn: { position: 'absolute', top: 14, right: 14, zIndex: 1 },
-  changeVoiceBtn: { position: 'absolute', top: 56, right: 14, zIndex: 1 },
-  editBtn: { position: 'absolute', top: 98, right: 14, zIndex: 1 },
-  replayBtn: { position: 'absolute', bottom: 14, right: 56, width: 36, height: 36, borderRadius: 18, justifyContent: 'center', alignItems: 'center' },
-  nextCardBtn: { position: 'absolute', bottom: 14, right: 14, width: 36, height: 36, borderRadius: 18, justifyContent: 'center', alignItems: 'center' },
-  ratingRow: { flexDirection: 'row', padding: 16, gap: 8 },
-  ratingBtn: { flex: 1, borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
-  ratingBtnText: { fontWeight: 'bold', fontSize: 14 },
+  cardHint: { textAlign: 'center', paddingBottom: 58, fontSize: 12 },
+  replayBtn: { position: 'absolute', bottom: 12, right: 62, width: 40, height: 40, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
+  nextCardBtn: { position: 'absolute', bottom: 12, right: 12, width: 40, height: 40, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
+  ratingRow: { flexDirection: 'row', paddingHorizontal: 16, paddingTop: 8, paddingBottom: 16, gap: 10 },
+  ratingBtn: { flex: 1, minHeight: 50, borderRadius: 14, paddingVertical: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
+  ratingBtnText: { fontWeight: '700', fontSize: 14 },
 });

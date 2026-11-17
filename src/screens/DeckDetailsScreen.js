@@ -10,6 +10,7 @@ import { sets, cards } from '../../db/schema';
 import { AppContext } from '../context/AppContext';
 import { toggleCardImportant } from '../../dbServices.drizzle';
 import { FormattedText } from '../components/Shared';
+import { AppBar } from '../components/ui';
 const { playMixedTTS } = require('../utils/tts');
 
 const DeckCardItem = ({ item, deck, onMenuPress, theme, styles, preferredVoices }) => {
@@ -29,14 +30,14 @@ const DeckCardItem = ({ item, deck, onMenuPress, theme, styles, preferredVoices 
           const backLang = deck.backLanguage || 'en-US';
           playMixedTTS(item.front, frontLang, preferredVoices);
           playMixedTTS(item.back, backLang, preferredVoices);
-        }}><Text style={styles.ddCardIcon}>🔊</Text></TouchableOpacity>
+        }} style={{ minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' }}><Text style={styles.ddCardIcon}>🔊</Text></TouchableOpacity>
         <TouchableOpacity onPress={async () => {
           const newVal = await toggleCardImportant(item.id);
           setFavorited(newVal === 1);
-        }}>
-          <Text style={[styles.ddCardIcon, favorited && { color: '#FF6B6B' }]}>{favorited ? '♥' : '♡'}</Text>
+        }} style={{ minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' }}>
+          <Text style={[styles.ddCardIcon, favorited && { color: theme.danger }]}>{favorited ? '♥' : '♡'}</Text>
         </TouchableOpacity>
-        <TouchableOpacity onPress={() => onMenuPress(item)}><Text style={styles.ddCardIcon}>⋮</Text></TouchableOpacity>
+        <TouchableOpacity onPress={() => onMenuPress(item)} style={{ minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' }}><Text style={styles.ddCardIcon}>⋮</Text></TouchableOpacity>
       </View>
     </View>
   );
@@ -118,15 +119,18 @@ function DeckDetailsScreenContent({ deck, deckCards = [] }) {
 
   return (
     <View style={[styles.screen, { paddingTop: insets.top }]}>
+      <AppBar
+        title={deck.title}
+        theme={theme}
+        leftIcon="arrow-back"
+        onLeftPress={onBack}
+        actions={[
+          { id: 'settings', icon: 'settings-outline', onPress: () => setPriorityModalVisible(true) },
+          { id: 'search', icon: 'search-outline' },
+          { id: 'more', icon: 'ellipsis-vertical' },
+        ]}
+      />
       <View style={styles.ddHeader}>
-        <View style={styles.ddHeaderTop}>
-          <TouchableOpacity onPress={onBack} style={styles.hBtn}><Text style={styles.hIcon}>←</Text></TouchableOpacity>
-          <View style={styles.ddHeaderIcons}>
-            <TouchableOpacity style={styles.hBtn} onPress={() => setPriorityModalVisible(true)}><Text style={styles.hIcon}>⚙️</Text></TouchableOpacity>
-            <TouchableOpacity style={styles.hBtn}><Text style={styles.hIcon}>🔍</Text></TouchableOpacity>
-            <TouchableOpacity style={styles.hBtn}><Text style={styles.hIcon}>⋮</Text></TouchableOpacity>
-          </View>
-        </View>
         <View style={styles.ddTabs}>
           <View style={styles.ddTabActive}><Text style={styles.ddTabText}>Todos: {deckCards.length}</Text></View>
         </View>
@@ -134,15 +138,14 @@ function DeckDetailsScreenContent({ deck, deckCards = [] }) {
 
       <View style={{ paddingHorizontal: 20, marginBottom: 16, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
         <View>
-          <Text style={{ color: '#FFFFFF', fontSize: 16, fontWeight: '700' }}>{deck.title}</Text>
-          <Text style={{ color: '#BBBBBB', fontSize: 12, marginBottom: 8 }}>Prioridade atual: {priority}</Text>
-          <TouchableOpacity onPress={() => setPriorityModalVisible(true)} style={{ alignSelf: 'flex-start', backgroundColor: '#3B9EFF', paddingVertical: 8, paddingHorizontal: 14, borderRadius: 20 }}>
-            <Text style={{ color: '#FFFFFF', fontWeight: '700', fontSize: 13 }}>Editar prioridade</Text>
+          <Text style={{ color: theme.textSecondary, fontSize: 12, marginBottom: 8 }}>Prioridade atual: {priority}</Text>
+          <TouchableOpacity onPress={() => setPriorityModalVisible(true)} style={{ minHeight: 44, alignSelf: 'flex-start', backgroundColor: theme.accentSoft, paddingVertical: 10, paddingHorizontal: 14, borderRadius: 12, justifyContent: 'center' }}>
+            <Text style={{ color: theme.accent, fontWeight: '700', fontSize: 13 }}>Editar prioridade</Text>
           </TouchableOpacity>
         </View>
         <View style={{ alignItems: 'flex-end' }}>
-          <Text style={{ color: '#BBBBBB', fontSize: 12 }}>Tipo de priorização</Text>
-          <Text style={{ color: '#FFFFFF', fontSize: 12 }}>Menor valor = mais prioridade</Text>
+          <Text style={{ color: theme.textSecondary, fontSize: 12 }}>Tipo de priorização</Text>
+          <Text style={{ color: theme.textPrimary, fontSize: 12 }}>Menor valor = mais prioridade</Text>
         </View>
       </View>
 
@@ -157,7 +160,7 @@ function DeckDetailsScreenContent({ deck, deckCards = [] }) {
         )}
       />
 
-      <View style={styles.ddFooter}>
+      <View style={[styles.ddFooter, { paddingBottom: Math.max(insets.bottom, 16) }]}>
         <TouchableOpacity style={styles.ddFooterBtn} onPress={() => setCardModal(true)}>
           <Text style={styles.ddFooterBtnText}>ADICIONAR CARTÕES</Text>
         </TouchableOpacity>
@@ -172,13 +175,13 @@ function DeckDetailsScreenContent({ deck, deckCards = [] }) {
         <View style={styles.wsModalOverlay}>
           <View style={styles.wsModalBox}>
             <Text style={styles.wsModalTitle}>Adicionar Cartão</Text>
-            <TextInput style={styles.wsInput} placeholder="Frente (Pergunta)" placeholderTextColor="#666" value={cardFront} onChangeText={setCardFront} />
-            <TextInput style={[styles.wsInput, { marginTop: 10 }]} placeholder="Verso (Resposta)" placeholderTextColor="#666" value={cardBack} onChangeText={setCardBack} />
-            <TextInput style={[styles.wsInput, { marginTop: 10 }]} placeholder="Tag (Opcional)" placeholderTextColor="#666" value={cardTag} onChangeText={setCardTag} />
+            <TextInput style={styles.wsInput} placeholder="Frente (Pergunta)" placeholderTextColor={theme.textSecondary} value={cardFront} onChangeText={setCardFront} />
+            <TextInput style={[styles.wsInput, { marginTop: 10 }]} placeholder="Verso (Resposta)" placeholderTextColor={theme.textSecondary} value={cardBack} onChangeText={setCardBack} />
+            <TextInput style={[styles.wsInput, { marginTop: 10 }]} placeholder="Tag (Opcional)" placeholderTextColor={theme.textSecondary} value={cardTag} onChangeText={setCardTag} />
             <View style={styles.wsModalActions}>
               <TouchableOpacity onPress={handleCloseModal}><Text style={styles.wsModalCancel}>Cancelar</Text></TouchableOpacity>
               <TouchableOpacity onPress={handleAdd}><View style={styles.wsModalConfirm}><Text style={styles.wsModalConfirmText}>Adicionar +</Text></View></TouchableOpacity>
-              <TouchableOpacity onPress={handleFinish}><View style={[styles.wsModalConfirm, { backgroundColor: '#4CAF50' }]}><Text style={styles.wsModalConfirmText}>Concluir</Text></View></TouchableOpacity>
+              <TouchableOpacity onPress={handleFinish}><View style={[styles.wsModalConfirm, { backgroundColor: theme.success }]}><Text style={styles.wsModalConfirmText}>Concluir</Text></View></TouchableOpacity>
             </View>
           </View>
         </View>
@@ -191,7 +194,7 @@ function DeckDetailsScreenContent({ deck, deckCards = [] }) {
             <TextInput
               style={styles.wsInput}
               placeholder="Valor da prioridade"
-              placeholderTextColor="#666"
+              placeholderTextColor={theme.textSecondary}
               keyboardType="numeric"
               value={priority.toString()}
               onChangeText={(text) => setPriority(Number(text) || 0)}
@@ -218,7 +221,7 @@ function DeckDetailsScreenContent({ deck, deckCards = [] }) {
               <Text style={styles.contextMenuText}>Editar</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.contextMenuItem} onPress={() => { Alert.alert('Excluir', 'Tem certeza que deseja excluir este cartão?', [{ text: 'Cancelar', style: 'cancel' }, { text: 'Excluir', style: 'destructive', onPress: () => onDeleteCard(cardMenuAtivo.id) }]); setCardMenuAtivo(null); }}>
-              <Text style={[styles.contextMenuText, { color: '#F44336' }]}>Excluir</Text>
+              <Text style={[styles.contextMenuText, { color: theme.danger }]}>Excluir</Text>
             </TouchableOpacity>
           </View>
         </TouchableOpacity>
@@ -228,9 +231,9 @@ function DeckDetailsScreenContent({ deck, deckCards = [] }) {
         <View style={styles.wsModalOverlay}>
           <View style={styles.wsModalBox}>
             <Text style={styles.wsModalTitle}>Editar Cartão</Text>
-            <TextInput style={styles.wsInput} placeholder="Frente (Pergunta)" placeholderTextColor="#666" value={editCardFront} onChangeText={setEditCardFront} />
-            <TextInput style={[styles.wsInput, { marginTop: 10 }]} placeholder="Verso (Resposta)" placeholderTextColor="#666" value={editCardBack} onChangeText={setEditCardBack} />
-            <TextInput style={[styles.wsInput, { marginTop: 10 }]} placeholder="Tag (Opcional)" placeholderTextColor="#666" value={editCardTag} onChangeText={setEditCardTag} />
+            <TextInput style={styles.wsInput} placeholder="Frente (Pergunta)" placeholderTextColor={theme.textSecondary} value={editCardFront} onChangeText={setEditCardFront} />
+            <TextInput style={[styles.wsInput, { marginTop: 10 }]} placeholder="Verso (Resposta)" placeholderTextColor={theme.textSecondary} value={editCardBack} onChangeText={setEditCardBack} />
+            <TextInput style={[styles.wsInput, { marginTop: 10 }]} placeholder="Tag (Opcional)" placeholderTextColor={theme.textSecondary} value={editCardTag} onChangeText={setEditCardTag} />
             <View style={styles.wsModalActions}>
               <TouchableOpacity onPress={() => setEditCardModal(false)}><Text style={styles.wsModalCancel}>Cancelar</Text></TouchableOpacity>
               <TouchableOpacity onPress={() => { if (editCardFront.trim() && editCardBack.trim()) { onUpdateCard(editingCardId, editCardFront, editCardBack, editCardTag); setEditCardModal(false); } }}>
@@ -245,6 +248,7 @@ function DeckDetailsScreenContent({ deck, deckCards = [] }) {
 }
 
 export default function DeckDetailsScreen() {
+  const { theme } = useContext(AppContext);
   const route = useRoute();
   const { deckId } = route.params || {};
 
@@ -254,7 +258,7 @@ export default function DeckDetailsScreen() {
   const deck = deckData?.[0];
   const deckCards = deckCardsData || [];
 
-  if (!deck) return <View style={{ flex: 1, backgroundColor: '#000' }} />;
+  if (!deck) return <View style={{ flex: 1, backgroundColor: theme.bg }} />;
 
   return <DeckDetailsScreenContent deck={deck} deckCards={deckCards} />;
 }

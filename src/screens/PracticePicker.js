@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { Badge } from '../components/Shared';
+import { AppBar } from '../components/ui';
 import { AppContext } from '../context/AppContext';
 
 const MODOS = [
@@ -30,18 +31,16 @@ export default function PracticePicker() {
 
   return (
     <View style={[styles.screen, { paddingTop: insets.top }]}>
-        <View style={styles.header}>
-          <TouchableOpacity onPress={onClose} style={styles.hBtn}>
-            <Text style={styles.hIcon}>✕</Text>
-          </TouchableOpacity>
-          <Text style={[styles.hTitle, { flex: 1 }]}>Prática</Text>
-          <TouchableOpacity style={styles.hBtn}>
-            <Text style={styles.hIcon}>⚙️</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.hBtn}>
-            <Text style={styles.hIcon}>⋮</Text>
-          </TouchableOpacity>
-        </View>
+        <AppBar
+          title="Prática"
+          theme={theme}
+          leftIcon="close"
+          onLeftPress={onClose}
+          actions={[
+            { id: 'settings', icon: 'settings-outline' },
+            { id: 'more', icon: 'ellipsis-vertical' },
+          ]}
+        />
 
         <ScrollView contentContainerStyle={{ padding: 16 }}>
           {MODOS.map((modo, i) => (
@@ -59,7 +58,7 @@ export default function PracticePicker() {
                   <Text style={styles.modoLabel}>{modo.label}</Text>
                   {modo.pro && (
                     <View style={{ marginLeft: 8 }}>
-                      <Badge color="#FF9800" theme={theme}>PRO</Badge>
+                      <Badge color={theme.warning} theme={theme}>PRO</Badge>
                     </View>
                   )}
                 </View>

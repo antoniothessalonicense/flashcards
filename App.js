@@ -88,6 +88,9 @@ const initializeDatabase = async (db) => {
     if (!setsColumns.includes('next_review_date')) {
       await db.execAsync("ALTER TABLE sets ADD COLUMN next_review_date INTEGER DEFAULT 0;");
     }
+    if (!setsColumns.includes('last_review_date')) {
+      await db.execAsync("ALTER TABLE sets ADD COLUMN last_review_date INTEGER DEFAULT 0;");
+    }
     if (!setsColumns.includes('totalReviews')) {
       await db.execAsync("ALTER TABLE sets ADD COLUMN totalReviews INTEGER DEFAULT 0;");
     }
@@ -127,6 +130,18 @@ const initializeDatabase = async (db) => {
     }
     await db.execAsync(`CREATE INDEX IF NOT EXISTS idx_cards_isImportant ON cards(isImportant);`);
 
+    // Sincroniza a data de próxima revisão de todos os conjuntos (corrige conjuntos com data zerada ou desatualizada)
+    await db.execAsync(`
+      UPDATE sets 
+      SET next_review_date = (
+        SELECT MIN(next_review_date) FROM cards WHERE cards.set_id = sets.id
+      )
+      WHERE EXISTS (
+        SELECT 1 FROM cards WHERE cards.set_id = sets.id
+      );
+    `);
+    await db.execAsync(`CREATE INDEX IF NOT EXISTS idx_sets_last_review_date ON sets(last_review_date);`);
+
     // 3. Criação/migração da tabela ciclo_configs
     await db.execAsync(`
       CREATE TABLE IF NOT EXISTS ciclo_configs (
@@ -145,7 +160,8 @@ const initializeDatabase = async (db) => {
         cardsPorConjuntoAleatorio INTEGER NOT NULL DEFAULT 10,
         globalTagLimit INTEGER NOT NULL DEFAULT 5,
         surpriseTagsCount INTEGER NOT NULL DEFAULT 2,
-        cardsPerSurpriseTag INTEGER NOT NULL DEFAULT 5
+        cardsPerSurpriseTag INTEGER NOT NULL DEFAULT 5,
+        apenasNaoAprendidosObrigatorio INTEGER NOT NULL DEFAULT 0
       );
     `);
 
@@ -168,6 +184,9 @@ const initializeDatabase = async (db) => {
     }
     if (!configColumns.includes('cardsPerSurpriseTag')) {
       await db.execAsync("ALTER TABLE ciclo_configs ADD COLUMN cardsPerSurpriseTag INTEGER NOT NULL DEFAULT 5;");
+    }
+    if (!configColumns.includes('apenasNaoAprendidosObrigatorio')) {
+      await db.execAsync("ALTER TABLE ciclo_configs ADD COLUMN apenasNaoAprendidosObrigatorio INTEGER NOT NULL DEFAULT 0;");
     }
 
     // 4. Semeando dados (agora as colunas obrigatórias estão garantidas)

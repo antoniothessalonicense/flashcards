@@ -2,55 +2,73 @@ import { StyleSheet } from 'react-native';
 
 export const getTheme = (themeName) => {
   if (typeof themeName === 'boolean') themeName = themeName ? 'dark' : 'light';
-  
-  const themes = {
-    light: {
-      bg: '#F5F5F5', card: '#FFFFFF', blue: '#3B9EFF', purple: '#7B5CF5',
-      white: '#000000', gray: '#888888', sep: '#DDDDDD', reviewCard: '#E3F2FD',
-      cardBtnBg: '#00000011', favIcon: '#00000055',
-    },
-    dark: {
-      bg: '#1A1A1A', card: '#2A2A2A', blue: '#3B9EFF', purple: '#7B5CF5',
-      white: '#FFFFFF', gray: '#888888', sep: '#444444', reviewCard: '#3A4A5C',
-      cardBtnBg: '#ffffff22', favIcon: '#ffffff55',
-    },
-    neon_vibrant: {
-      bg: '#0A0A0A', card: '#1A1A1A', blue: '#00E5FF', purple: '#D500F9',
-      white: '#FFFFFF', gray: '#888888', sep: '#333333', reviewCard: '#220044',
-      cardBtnBg: '#ffffff22', favIcon: '#ffffff55',
-    },
-    earth_tones: {
-      bg: '#2B2521', card: '#3E342F', blue: '#B26A4F', purple: '#8E5B5B',
-      white: '#E8E0D5', gray: '#A2968D', sep: '#5E524A', reviewCard: '#3E4B35',
-      cardBtnBg: '#ffffff11', favIcon: '#ffffff44',
-    },
-    arctic_cool: {
-      bg: '#F0F4F8', card: '#FFFFFF', blue: '#29B6F6', purple: '#B39DDB',
-      white: '#37474F', gray: '#78909C', sep: '#CFD8DC', reviewCard: '#E1F5FE',
-      cardBtnBg: '#00000011', favIcon: '#00000055',
-    },
-    pastel_dreams: {
-      bg: '#FFF8E1', card: '#FFFFFF', blue: '#F48FB1', purple: '#F8BBD0',
-      white: '#5D4037', gray: '#8D6E63', sep: '#FFE082', reviewCard: '#FFF0F5',
-      cardBtnBg: '#00000011', favIcon: '#00000055',
-    }
+
+  const isDark = !['light', 'arctic_cool', 'pastel_dreams'].includes(themeName);
+  const palette = isDark ? {
+    bg: '#0F172A',
+    surface: '#1E293B',
+    border: '#334155',
+    tableHeader: '#1B2638',
+    appBar: '#1E3A5F',
+    appBarText: '#FFFFFF',
+    textPrimary: '#E2E8F0',
+    textSecondary: '#94A3B8',
+    accent: '#60A5FA',
+    accentSoft: '#1E3A8A',
+    overlay: '#0F172A99',
+    success: '#4ADE80',
+    warning: '#FBBF24',
+    danger: '#F87171',
+  } : {
+    bg: '#F1F5F9',
+    surface: '#FFFFFF',
+    border: '#E2E8F0',
+    tableHeader: '#E8EDF3',
+    appBar: '#1E3A5F',
+    appBarText: '#FFFFFF',
+    textPrimary: '#1E3A5F',
+    textSecondary: '#64748B',
+    accent: '#1D4ED8',
+    accentSoft: '#DBEAFE',
+    overlay: '#1E3A5F55',
+    success: '#15803D',
+    warning: '#B45309',
+    danger: '#B91C1C',
   };
-  return themes[themeName] || themes['dark'];
+
+  return {
+    ...palette,
+    card: palette.surface,
+    blue: palette.accent,
+    purple: palette.accent,
+    white: palette.textPrimary,
+    gray: palette.textSecondary,
+    sep: palette.border,
+    reviewCard: palette.accentSoft,
+    cardBtnBg: isDark ? '#FFFFFF22' : '#1E3A5F11',
+    favIcon: isDark ? '#FFFFFF55' : '#1E3A5F55',
+  };
+};
+
+export const getDomainColor = (percentage, theme) => {
+  if (percentage >= 100) return theme.success;
+  if (percentage >= 10) return theme.warning;
+  return theme.danger;
 };
 
 export const getStyles = (C) => StyleSheet.create({
   screen: { flex: 1, backgroundColor: C.bg },
 
   // Header
-  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, paddingVertical: 8 },
-  hBtn: { padding: 8 },
-  hIcon: { color: C.white, fontSize: 30 },
-  hTitle: { color: C.white, fontSize: 18, fontWeight: 'bold', paddingLeft: 8 },
+  header: { minHeight: 56, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, backgroundColor: C.appBar },
+  hBtn: { minWidth: 44, minHeight: 44, padding: 8, alignItems: 'center', justifyContent: 'center' },
+  hIcon: { color: C.appBarText, fontSize: 24 },
+  hTitle: { color: C.appBarText, fontSize: 20, fontWeight: '600', paddingLeft: 8 },
 
   // Workspace pill
   pill: {
     flexDirection: 'row', alignItems: 'center',
-    borderRadius: 30, borderWidth: 1, borderColor: '#444',
+    borderRadius: 10, borderWidth: 1, borderColor: C.border,
     paddingHorizontal: 16, paddingVertical: 8,
     marginHorizontal: 16, marginBottom: 12,
   },
@@ -67,11 +85,11 @@ export const getStyles = (C) => StyleSheet.create({
   pillUpload: { color: C.blue, fontSize: 10 },
 
   // Action row
-  actionRow: { flexDirection: 'row', paddingHorizontal: 16, marginBottom: 12, gap: 16 },
+  actionRow: { flexDirection: 'row', paddingHorizontal: 16, marginBottom: 12, gap: 0, borderWidth: 1, borderColor: C.border, borderRadius: 12, overflow: 'hidden', backgroundColor: C.surface },
   actionBtn: { color: C.blue, fontWeight: 'bold', fontSize: 14 },
 
   // Daily goal
-  dailyGoal: { backgroundColor: C.card, borderRadius: 8, padding: 12, marginHorizontal: 16, marginBottom: 16 },
+  dailyGoal: { backgroundColor: C.surface, borderColor: C.border, borderWidth: 1, borderRadius: 14, padding: 12, marginHorizontal: 16, marginBottom: 16 },
   dailyGoalText: { color: C.white, marginBottom: 8, fontSize: 13 },
 
   // Progress bar
@@ -80,8 +98,8 @@ export const getStyles = (C) => StyleSheet.create({
 
   // Deck item
   deckItem: {
-    backgroundColor: C.card, borderRadius: 12,
-    padding: 14, marginHorizontal: 16, marginBottom: 12,
+    backgroundColor: C.surface, borderBottomWidth: 1, borderBottomColor: C.border,
+    padding: 14, marginHorizontal: 16,
   },
   deckName: { color: C.white, fontWeight: 'bold', fontSize: 15, marginBottom: 4 },
   deckSub: { color: C.gray, fontSize: 12, marginBottom: 8 },
@@ -98,14 +116,14 @@ export const getStyles = (C) => StyleSheet.create({
   contextMenuText: { color: C.white, fontSize: 16 },
 
   // Footer
-  footer: { position: 'absolute', bottom: 0, left: 0, right: 0, padding: 16, backgroundColor: C.bg, gap: 10 },
-  footerOut: { borderRadius: 30, borderWidth: 1.5, borderColor: C.blue, paddingVertical: 14, alignItems: 'center' },
-  footerOutText: { color: C.blue, fontWeight: 'bold', fontSize: 14 },
-  footerFill: { borderRadius: 30, backgroundColor: C.blue, paddingVertical: 14, alignItems: 'center' },
-  footerFillText: { color: C.white, fontWeight: 'bold', fontSize: 14 },
+  footer: { position: 'absolute', bottom: 0, left: 0, right: 0, flexDirection: 'row', padding: 16, backgroundColor: C.bg, gap: 8 },
+  footerOut: { flex: 1, borderRadius: 12, borderWidth: 1, borderColor: C.textSecondary, paddingVertical: 12, alignItems: 'center', justifyContent: 'center' },
+  footerOutText: { color: C.textPrimary, fontWeight: '600', fontSize: 13, textAlign: 'center' },
+  footerFill: { flex: 1, borderRadius: 12, backgroundColor: C.appBar, paddingVertical: 12, alignItems: 'center', justifyContent: 'center' },
+  footerFillText: { color: C.appBarText, fontWeight: '600', fontSize: 13, textAlign: 'center' },
 
   // Badge
-  badge: { borderRadius: 20, paddingHorizontal: 7, paddingVertical: 2, alignSelf: 'flex-start' },
+  badge: { borderRadius: 10, paddingHorizontal: 7, paddingVertical: 2, alignSelf: 'flex-start' },
   badgeText: { color: C.white, fontSize: 10, fontWeight: 'bold' },
 
   // Modal / Menu
@@ -115,12 +133,12 @@ export const getStyles = (C) => StyleSheet.create({
   menuHeader: { padding: 20, paddingTop: 44 },
   avatar: {
     width: 52, height: 52, borderRadius: 26,
-    backgroundColor: '#ff009d',
+    backgroundColor: C.accent,
     justifyContent: 'center', alignItems: 'center', marginBottom: 8,
   },
   avatarText: { color: C.white, fontSize: 22, fontWeight: 'bold' },
   menuName: { color: C.white, fontWeight: 'bold', fontSize: 16, marginTop: 6 },
-  menuEmail: { color: '#ffffffaa', fontSize: 12, marginTop: 2 },
+  menuEmail: { color: C.appBarText, opacity: 0.8, fontSize: 12, marginTop: 2 },
   menuItem: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14 },
   menuItemIcon: { width: 22, fontSize: 16 },
   menuItemText: { color: C.white, fontSize: 14, marginLeft: 12 },
@@ -135,7 +153,7 @@ export const getStyles = (C) => StyleSheet.create({
   },
   modoIconWrap: {
     width: 48, height: 48, borderRadius: 24,
-    backgroundColor: '#3B9EFF22',
+    backgroundColor: C.accentSoft,
     justifyContent: 'center', alignItems: 'center',
   },
   modoLabel: { color: C.white, fontWeight: 'bold', fontSize: 15 },
@@ -146,7 +164,7 @@ export const getStyles = (C) => StyleSheet.create({
   cardContent: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },
   cardFront: { color: C.white, fontSize: 24, fontWeight: 'bold', textAlign: 'center' },
   cardBack: { color: C.white, fontSize: 18, textAlign: 'center' },
-  cardHint: { color: '#ffffff44', textAlign: 'center', paddingBottom: 60, fontSize: 12 },
+  cardHint: { color: C.textSecondary, textAlign: 'center', paddingBottom: 60, fontSize: 12 },
   favBtn: { position: 'absolute', top: 14, left: 14, zIndex: 1 },
   replayBtn: {
     position: 'absolute', bottom: 14, right: 56,
@@ -216,7 +234,7 @@ export const getStyles = (C) => StyleSheet.create({
   ddCardFooter: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 16, borderTopWidth: 1, borderTopColor: C.sep, paddingTop: 12 },
   ddCardIcon: { color: C.gray, fontSize: 18 },
   ddFooter: { position: 'absolute', bottom: 0, left: 0, right: 0, flexDirection: 'row', padding: 16, backgroundColor: C.bg, gap: 12, borderTopWidth: 1, borderTopColor: C.sep },
-  ddFooterBtn: { flex: 1, backgroundColor: C.blue, borderRadius: 30, paddingVertical: 16, alignItems: 'center', justifyContent: 'center' },
+  ddFooterBtn: { flex: 1, backgroundColor: C.appBar, borderRadius: 12, paddingVertical: 12, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
   ddFooterBtnText: { color: C.white, fontWeight: 'bold', fontSize: 13 },
   ddFab: {
     position: 'absolute', bottom: 90, right: 16,

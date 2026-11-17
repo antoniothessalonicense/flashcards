@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useContext, useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -18,9 +18,12 @@ import db from '../../db';
 import { sets } from '../../db/schema';
 import { useCicloConfigStore, CICLO_DEFAULTS } from '../store/useCicloConfigStore';
 import { saveCycleConfig, getCycleConfig, buildCycleCards } from '../../dbServices.drizzle';
+import { AppContext } from '../context/AppContext';
 
 const ConfiguracaoCicloScreen: React.FC = () => {
   const navigation = useNavigation<any>();
+  const { theme } = useContext(AppContext);
+  const styles = createStyles(theme);
 
   // ── Estado global (Zustand) ──
   const config = useCicloConfigStore();
@@ -36,6 +39,8 @@ const ConfiguracaoCicloScreen: React.FC = () => {
   // ── Sets do DB ──
   const { data: allSetsData } = useLiveQuery(db.select().from(sets));
   const allSets = allSetsData || [];
+
+  const validFixosSelecionados = (config.conjuntosFixosSelecionados || []).filter(id => allSets.some(s => s.id === id));
 
   const toggleSetSelection = (setId: string) => {
     const current = config.conjuntosFixosSelecionados || [];
@@ -82,6 +87,7 @@ const ConfiguracaoCicloScreen: React.FC = () => {
         globalTagLimit: config.globalTagLimit,
         surpriseTagsCount: config.surpriseTagsCount,
         cardsPerSurpriseTag: config.cardsPerSurpriseTag,
+        apenasNaoAprendidosObrigatorio: config.apenasNaoAprendidosObrigatorio,
       });
 
       Alert.alert('Sucesso', 'Configurações salvas com sucesso!');
@@ -112,6 +118,7 @@ const ConfiguracaoCicloScreen: React.FC = () => {
         globalTagLimit: config.globalTagLimit,
         surpriseTagsCount: config.surpriseTagsCount,
         cardsPerSurpriseTag: config.cardsPerSurpriseTag,
+        apenasNaoAprendidosObrigatorio: config.apenasNaoAprendidosObrigatorio,
       });
 
       // Monta o ciclo real
@@ -131,6 +138,7 @@ const ConfiguracaoCicloScreen: React.FC = () => {
         globalTagLimit: config.globalTagLimit,
         surpriseTagsCount: config.surpriseTagsCount,
         cardsPerSurpriseTag: config.cardsPerSurpriseTag,
+        apenasNaoAprendidosObrigatorio: config.apenasNaoAprendidosObrigatorio,
       });
 
       setCicloResumo(ciclo.resumo);
@@ -198,8 +206,8 @@ const ConfiguracaoCicloScreen: React.FC = () => {
             <Switch
               value={config.limiteAtivo}
               onValueChange={(val) => config.updateConfig({ limiteAtivo: val })}
-              trackColor={{ false: '#E0E0E0', true: '#B0BEC5' }}
-              thumbColor={'#FFFFFF'}
+              trackColor={{ false: theme.border, true: theme.accent }}
+              thumbColor={theme.appBarText}
             />
           </View>
         </View>
@@ -259,6 +267,16 @@ const ConfiguracaoCicloScreen: React.FC = () => {
               onChangeText={(text) => config.updateConfig({ cardsPorConjuntoObrigatorio: Number(text) || 0 })}
             />
           </View>
+
+          <View style={[styles.cardRow, { marginTop: 16 }]}>
+            <Text style={styles.columnLabelLarge}>Apenas cards não aprendidos (avança se não atingir cota)</Text>
+            <Switch
+              value={config.apenasNaoAprendidosObrigatorio}
+              onValueChange={(val) => config.updateConfig({ apenasNaoAprendidosObrigatorio: val })}
+              trackColor={{ false: theme.border, true: theme.accent }}
+              thumbColor={theme.appBarText}
+            />
+          </View>
         </View>
 
         {/* Erros Anteriores */}
@@ -310,8 +328,8 @@ const ConfiguracaoCicloScreen: React.FC = () => {
             </TouchableOpacity>
             <TouchableOpacity onPress={() => setSetsModalVisible(true)}>
               <Text style={styles.linkText}>
-                {(config.conjuntosFixosSelecionados && config.conjuntosFixosSelecionados.length > 0)
-                  ? `${config.conjuntosFixosSelecionados.length} Selecionados`
+                {(validFixosSelecionados.length > 0)
+                  ? `${validFixosSelecionados.length} Selecionados`
                   : 'Ver Todos/Adicionar'}
               </Text>
             </TouchableOpacity>
@@ -376,7 +394,7 @@ const ConfiguracaoCicloScreen: React.FC = () => {
       <View style={styles.footer}>
         <TouchableOpacity style={styles.saveButton} onPress={handleSalvarConfiguracoes} disabled={loading}>
           {loading ? (
-            <ActivityIndicator color="#FFFFFF" />
+            <ActivityIndicator color={theme.appBarText} />
           ) : (
             <Text style={styles.saveButtonText}>SALVAR CONFIGURAÇÕES</Text>
           )}
@@ -567,34 +585,35 @@ const ConfiguracaoCicloScreen: React.FC = () => {
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (theme: any) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F0F4F8',
+    backgroundColor: theme.bg,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingTop: 20,
-    paddingBottom: 10,
+    minHeight: 56,
+    paddingHorizontal: 16,
+    backgroundColor: theme.appBar,
   },
   screenTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#2C3E50',
+    fontSize: 20,
+    fontWeight: '600',
+    color: theme.appBarText,
   },
   helpButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#007BFF',
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: theme.accent,
     justifyContent: 'center',
     alignItems: 'center',
   },
   helpButtonText: {
-    color: '#FFF',
+    color: theme.appBarText,
     fontSize: 18,
     fontWeight: 'bold',
   },
@@ -605,23 +624,18 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 13,
     fontWeight: 'bold',
-    color: '#555',
+    color: theme.textSecondary,
     marginBottom: 8,
     marginTop: 8,
     marginLeft: 4,
   },
   card: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
+    backgroundColor: theme.surface,
+    borderRadius: 14,
     padding: 16,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: '#E8ECEF',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 2,
+    borderColor: theme.border,
   },
   cardHeader: {
     flexDirection: 'row',
@@ -641,12 +655,12 @@ const styles = StyleSheet.create({
   cardTitle: {
     fontSize: 12,
     fontWeight: 'bold',
-    color: '#000',
+    color: theme.textPrimary,
     flexShrink: 1,
   },
   subtext: {
     fontSize: 11,
-    color: '#666',
+    color: theme.textSecondary,
     marginBottom: 12,
   },
   cardRow: {
@@ -656,22 +670,22 @@ const styles = StyleSheet.create({
   },
   inputLarge: {
     borderWidth: 1,
-    borderColor: '#D1D9E0',
+    borderColor: theme.border,
     borderRadius: 8,
     paddingHorizontal: 12,
     paddingVertical: 8,
     fontSize: 16,
-    color: '#333',
+    color: theme.textPrimary,
     width: 100,
   },
   inputSmall: {
     borderWidth: 1,
-    borderColor: '#D1D9E0',
+    borderColor: theme.border,
     borderRadius: 8,
     paddingHorizontal: 12,
     paddingVertical: 6,
     fontSize: 16,
-    color: '#333',
+    color: theme.textPrimary,
     width: 60,
     textAlign: 'center',
   },
@@ -686,14 +700,14 @@ const styles = StyleSheet.create({
   },
   columnLabel: {
     fontSize: 12,
-    color: '#000',
+    color: theme.textPrimary,
     marginBottom: 8,
     fontWeight: '600',
     textAlign: 'center',
   },
   columnLabelLarge: {
     fontSize: 12,
-    color: '#000',
+    color: theme.textPrimary,
     fontWeight: 'bold',
     flex: 1,
     marginRight: 16,
@@ -703,17 +717,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   counterBtn: {
-    backgroundColor: '#8DE8C7',
-    width: 32,
-    height: 32,
+    backgroundColor: theme.accentSoft,
+    width: 44,
+    height: 44,
     justifyContent: 'center',
     alignItems: 'center',
-    borderRadius: 4,
+    borderRadius: 10,
   },
   counterBtnText: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#000',
+    color: theme.accent,
   },
   counterInput: {
     fontSize: 16,
@@ -721,12 +735,12 @@ const styles = StyleSheet.create({
     width: 48,
     textAlign: 'center',
     borderWidth: 1,
-    borderColor: '#D1D9E0',
-    borderRadius: 4,
-    marginHorizontal: 8,
-    height: 32,
+    borderColor: theme.border,
+    borderRadius: 8,
+    marginHorizontal: 4,
+    height: 44,
     paddingVertical: 0,
-    color: '#000',
+    color: theme.textPrimary,
   },
   fakeSliderContainer: {
     marginTop: 12,
@@ -735,7 +749,7 @@ const styles = StyleSheet.create({
   },
   fakeSliderTrack: {
     height: 4,
-    backgroundColor: '#E0E0E0',
+    backgroundColor: theme.border,
     borderRadius: 2,
     width: '100%',
   },
@@ -745,21 +759,22 @@ const styles = StyleSheet.create({
     width: 16,
     height: 16,
     borderRadius: 8,
-    backgroundColor: '#4DA8DA',
+    backgroundColor: theme.accent,
   },
   selectButton: {
-    backgroundColor: '#E1F5FE',
+    minHeight: 44,
+    backgroundColor: theme.accentSoft,
     paddingVertical: 10,
     paddingHorizontal: 16,
     borderRadius: 8,
   },
   selectButtonText: {
-    color: '#0277BD',
+    color: theme.accent,
     fontWeight: 'bold',
     fontSize: 12,
   },
   linkText: {
-    color: '#5C85A8',
+    color: theme.accent,
     fontSize: 12,
     textDecorationLine: 'underline',
   },
@@ -768,19 +783,19 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: '#F0F4F8',
+    backgroundColor: theme.bg,
     padding: 16,
     paddingBottom: 32,
   },
   saveButton: {
-    backgroundColor: '#648CB4',
+    backgroundColor: theme.appBar,
     paddingVertical: 14,
     borderRadius: 12,
     alignItems: 'center',
     marginBottom: 12,
   },
   saveButtonText: {
-    color: '#FFFFFF',
+    color: theme.appBarText,
     fontSize: 16,
     fontWeight: 'bold',
   },
@@ -789,34 +804,31 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   restoreButtonText: {
-    color: '#666',
+    color: theme.textSecondary,
     fontSize: 14,
     fontWeight: '600',
   },
   // ── Modal Styles ──
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: theme.overlay,
     justifyContent: 'center',
     alignItems: 'center',
     padding: 24,
   },
   modalBox: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
+    backgroundColor: theme.surface,
+    borderColor: theme.border,
+    borderWidth: 1,
+    borderRadius: 14,
     padding: 24,
     width: '100%',
     maxWidth: 380,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 8,
   },
   modalTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#1A1A1A',
+    color: theme.textPrimary,
     textAlign: 'center',
     marginBottom: 20,
   },
@@ -828,7 +840,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 10,
     borderBottomWidth: 1,
-    borderBottomColor: '#F0F0F0',
+    borderBottomColor: theme.border,
   },
   modalCategoryRow: {
     flexDirection: 'row',
@@ -837,12 +849,12 @@ const styles = StyleSheet.create({
   },
   modalCategoryLabel: {
     fontSize: 14,
-    color: '#555',
+    color: theme.textSecondary,
   },
   modalCategoryValue: {
     fontSize: 14,
     fontWeight: 'bold',
-    color: '#648CB4',
+    color: theme.accent,
   },
   modalIcon: {
     fontSize: 16,
@@ -852,17 +864,17 @@ const styles = StyleSheet.create({
   modalLabel: {
     flex: 1,
     fontSize: 14,
-    color: '#333',
+    color: theme.textPrimary,
     fontWeight: '500',
   },
   modalValue: {
     fontSize: 14,
-    color: '#648CB4',
+    color: theme.accent,
     fontWeight: 'bold',
   },
   modalDivider: {
     height: 2,
-    backgroundColor: '#648CB4',
+    backgroundColor: theme.border,
     marginVertical: 12,
     borderRadius: 1,
   },
@@ -874,16 +886,16 @@ const styles = StyleSheet.create({
   modalTotalLabel: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: '#1A1A1A',
+    color: theme.textPrimary,
   },
   modalTotalValue: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#4CAF50',
+    color: theme.success,
   },
   modalLimiteText: {
     fontSize: 12,
-    color: '#888',
+    color: theme.textSecondary,
     textAlign: 'center',
     marginTop: 8,
   },
@@ -891,13 +903,13 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   modalStudyButton: {
-    backgroundColor: '#4CAF50',
+    backgroundColor: theme.success,
     paddingVertical: 14,
     borderRadius: 12,
     alignItems: 'center',
   },
   modalStudyButtonText: {
-    color: '#FFFFFF',
+    color: theme.appBarText,
     fontSize: 16,
     fontWeight: 'bold',
   },
@@ -906,7 +918,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   modalCloseButtonText: {
-    color: '#888',
+    color: theme.textSecondary,
     fontSize: 14,
     fontWeight: '600',
   },
@@ -915,48 +927,48 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#F0F0F0',
+    borderBottomColor: theme.border,
   },
   checkbox: {
     width: 24,
     height: 24,
     borderRadius: 6,
     borderWidth: 2,
-    borderColor: '#D1D9E0',
+    borderColor: theme.border,
     marginRight: 12,
     justifyContent: 'center',
     alignItems: 'center',
   },
   checkboxSelected: {
-    backgroundColor: '#4CAF50',
-    borderColor: '#4CAF50',
+    backgroundColor: theme.success,
+    borderColor: theme.success,
   },
   checkboxCheck: {
-    color: '#FFF',
+    color: theme.appBarText,
     fontSize: 14,
     fontWeight: 'bold',
   },
   setSelectTitle: {
     fontSize: 16,
-    color: '#333',
+    color: theme.textPrimary,
     flexShrink: 1,
   },
   noSetsText: {
     textAlign: 'center',
-    color: '#888',
+    color: theme.textSecondary,
     marginTop: 20,
     fontSize: 14,
   },
   helpSubtitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#2C3E50',
+    color: theme.textPrimary,
     marginTop: 16,
     marginBottom: 8,
   },
   helpText: {
     fontSize: 15,
-    color: '#555',
+    color: theme.textSecondary,
     lineHeight: 22,
   },
   tagChip: {
@@ -964,21 +976,21 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: '#D1D9E0',
-    backgroundColor: '#FFFFFF',
+    borderColor: theme.border,
+    backgroundColor: theme.surface,
     marginRight: 8,
   },
   tagChipSelected: {
-    backgroundColor: '#4CAF50',
-    borderColor: '#4CAF50',
+    backgroundColor: theme.accent,
+    borderColor: theme.accent,
   },
   tagChipText: {
-    color: '#333',
+    color: theme.textPrimary,
     fontSize: 13,
     fontWeight: '500',
   },
   tagChipTextSelected: {
-    color: '#FFF',
+    color: theme.appBarText,
   },
 });
 

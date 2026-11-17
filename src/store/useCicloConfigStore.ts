@@ -22,6 +22,7 @@ export interface CicloConfig {
   globalTagLimit: number;
   surpriseTagsCount: number;
   cardsPerSurpriseTag: number;
+  apenasNaoAprendidosObrigatorio: boolean;
 }
 
 interface CicloConfigActions {
@@ -55,6 +56,7 @@ export const CICLO_DEFAULTS: CicloConfig = {
   globalTagLimit: 5,
   surpriseTagsCount: 2,
   cardsPerSurpriseTag: 5,
+  apenasNaoAprendidosObrigatorio: false,
 };
 
 // ─────────────────────────────────────────────
@@ -89,6 +91,7 @@ export const useCicloConfigStore = create<CicloConfigStore>()(
           globalTagLimit: row.globalTagLimit ?? CICLO_DEFAULTS.globalTagLimit,
           surpriseTagsCount: row.surpriseTagsCount ?? CICLO_DEFAULTS.surpriseTagsCount,
           cardsPerSurpriseTag: row.cardsPerSurpriseTag ?? CICLO_DEFAULTS.cardsPerSurpriseTag,
+          apenasNaoAprendidosObrigatorio: row.apenasNaoAprendidosObrigatorio === 1 ? true : CICLO_DEFAULTS.apenasNaoAprendidosObrigatorio,
         }),
     }),
     {

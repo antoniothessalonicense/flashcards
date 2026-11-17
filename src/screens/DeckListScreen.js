@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useContext, useMemo } from 'react';
-import { View, Text, TouchableOpacity, FlatList, Modal, ScrollView, TextInput, Share, Alert, Switch, StyleSheet, Pressable } from 'react-native';
+import { View, Text, TouchableOpacity, FlatList, Modal, ScrollView, TextInput, Share, Alert, Switch } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
@@ -14,10 +14,10 @@ import { useNavigation } from '@react-navigation/native';
 import { eq, like, asc, sql } from 'drizzle-orm';
 import db from '../../db';
 import { sets, cards } from '../../db/schema';
-import { ProgressBar } from '../components/Shared';
 import CreateDeckModal from '../components/CreateDeckModal';
 import MenuScreen from '../components/MenuScreen';
 import { AppContext } from '../context/AppContext';
+import { getDomainColor, getTheme } from '../theme/theme';
 import { tempImportText } from '../temp_import';
 import { buildCycleCards } from '../../dbServices.drizzle';
 import { useCicloConfigStore } from '../store/useCicloConfigStore';
@@ -51,63 +51,121 @@ const flashcardSchema = z.array(
   })
 );
 
-const COLORS = ['#4CAF50', '#2196F3', '#FF9800', '#E91E63', '#9C27B0', '#00BCD4'];
 const SORT_MODES = [
   { key: 'alphabetical', label: 'Alfabética' },
   { key: 'atrasados', label: 'Atrasados' },
   { key: 'prioridade', label: 'Prioridade' },
   { key: 'erros', label: 'Mais erros' },
 ];
-const getDeckColor = (id) => {
-  const hash = id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-  return COLORS[hash % COLORS.length];
-};
-
 const DeckItem = ({ deck, stats, isTarget, setMenuAtivo }) => {
   const { theme } = useContext(AppContext);
   const navigation = useNavigation();
 
   const totalCards = stats?.total || 0;
-  const progress = totalCards > 0 ? (stats.memorized / totalCards) * 100 : 0;
-  const color = getDeckColor(deck.id);
+  const progress = totalCards > 0 ? Math.min((stats.memorized / totalCards) * 100, 100) : 0;
+  const roundedProgress = Math.round(progress);
+  const domainColor = getDomainColor(progress, theme);
+
+  let statusText = 'Novo';
+  if (roundedProgress >= 100) statusText = 'Dominado';
+  else if (roundedProgress >= 70) statusText = 'Avançado';
+  else if (roundedProgress >= 30) statusText = 'Em progresso';
+  else if (totalCards > 0) statusText = 'Iniciante';
 
   return (
-    <Pressable
-      style={[localStyles.card, { backgroundColor: theme.card, borderLeftColor: color }, isTarget && { borderColor: '#F44336', borderWidth: 2 }]}
+    <TouchableOpacity
+      activeOpacity={0.7}
       onPress={() => navigation.navigate('DeckDetails', { deckId: deck.id })}
+      style={{
+          backgroundColor: theme.surface,
+        borderRadius: 12,
+        padding: 14,
+        marginBottom: 10,
+        borderWidth: 1,
+        borderColor: isTarget ? theme.accent : theme.border,
+      }}
     >
-      <View style={localStyles.cardContent}>
-        <View style={localStyles.cardHeader}>
-          <Text style={[localStyles.cardTitle, { color: theme.white }]}>{deck.title}</Text>
-          <View style={localStyles.priorityRow}>
-            <Text style={localStyles.cardSubtitle}>{totalCards} cartões</Text>
-            <View style={localStyles.priorityBadge}>
-              <Text style={localStyles.priorityText}>P: {deck.priority ?? 0}</Text>
+      <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, gap: 12 }}>
+          <View style={{
+            width: 40,
+            height: 40,
+            borderRadius: 10,
+            backgroundColor: isTarget ? theme.accentSoft : (theme.cardBtnBg || theme.border + '33'),
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}>
+            <Ionicons name="albums-outline" size={22} color={isTarget ? theme.accent : theme.textPrimary} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Text numberOfLines={1} style={{ fontSize: 16, fontWeight: '700', color: theme.textPrimary, flexShrink: 1 }}>
+                {deck.title}
+              </Text>
+              {isTarget ? (
+                <View style={{ backgroundColor: theme.accent, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 }}>
+                  <Text style={{ fontSize: 10, fontWeight: '700', color: '#fff' }}>HOJE</Text>
+                </View>
+              ) : null}
             </View>
+            {deck.description ? (
+              <Text numberOfLines={1} style={{ fontSize: 12, color: theme.textSecondary, marginTop: 2 }}>
+                {deck.description}
+              </Text>
+            ) : null}
           </View>
         </View>
 
-        <View style={localStyles.progressContainer}>
-          <View style={localStyles.progressBarBackground}>
-            <View
-              style={[
-                localStyles.progressBarFill,
-                { width: `${progress}%`, backgroundColor: color }
-              ]}
-            />
-          </View>
-        </View>
-      </View>
-
-      <View style={localStyles.cardRight}>
-        <View style={[localStyles.progressCircle, { borderColor: color }]}>
-          <Text style={[localStyles.progressCircleText, { color: theme.white }]}>{Math.round(progress)}%</Text>
-        </View>
-        <TouchableOpacity onPress={() => setMenuAtivo(deck.id)} style={{ padding: 8 }}>
-          <Ionicons name="ellipsis-vertical" size={24} color={theme.gray || '#ccc'} />
+        <TouchableOpacity
+          onPress={() => setMenuAtivo(deck.id)}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          style={{ width: 32, height: 32, alignItems: 'center', justifyContent: 'center', borderRadius: 8 }}
+        >
+          <Ionicons name="ellipsis-vertical" size={18} color={theme.textSecondary} />
         </TouchableOpacity>
       </View>
-    </Pressable>
+
+      <View style={{ marginTop: 12 }}>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+              <Ionicons name="copy-outline" size={13} color={theme.textSecondary} />
+              <Text style={{ fontSize: 13, color: theme.textSecondary, fontWeight: '600' }}>
+                {totalCards} {totalCards === 1 ? 'cartão' : 'cartões'}
+              </Text>
+            </View>
+
+            {(deck.priority ?? 0) > 0 ? (
+              <View style={{ backgroundColor: theme.warning + '22', paddingHorizontal: 6, paddingVertical: 1, borderRadius: 4 }}>
+                <Text style={{ fontSize: 11, color: theme.warning, fontWeight: '700' }}>
+                  P{deck.priority}
+                </Text>
+              </View>
+            ) : null}
+          </View>
+
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <Text style={{ fontSize: 12, fontWeight: '600', color: domainColor }}>
+              {statusText}
+            </Text>
+            <Text style={{ fontSize: 13, fontWeight: '700', color: domainColor, fontVariant: ['tabular-nums'] }}>
+              {roundedProgress}%
+            </Text>
+          </View>
+        </View>
+
+        <View style={{ height: 5, backgroundColor: theme.border, borderRadius: 3, overflow: 'hidden' }}>
+          <View
+            style={{
+              height: '100%',
+              width: `${roundedProgress}%`,
+              backgroundColor: domainColor,
+              borderRadius: 3,
+            }}
+          />
+        </View>
+      </View>
+    </TouchableOpacity>
   );
 };
 
@@ -755,6 +813,13 @@ function DeckListScreen({ decks = [], totalCardsCount = 0, deckStats = [] }) {
         cardsPorConjuntoFixo: cicloConfig.cardsPorConjuntoFixo,
         limiteAtivo: cicloConfig.limiteAtivo,
         limiteDiarioTotal: cicloConfig.limiteDiarioTotal,
+        conjuntosFixosSelecionados: cicloConfig.conjuntosFixosSelecionados,
+        qtdConjuntosAleatorios: cicloConfig.qtdConjuntosAleatorios,
+        cardsPorConjuntoAleatorio: cicloConfig.cardsPorConjuntoAleatorio,
+        globalTagLimit: cicloConfig.globalTagLimit,
+        surpriseTagsCount: cicloConfig.surpriseTagsCount,
+        cardsPerSurpriseTag: cicloConfig.cardsPerSurpriseTag,
+        apenasNaoAprendidosObrigatorio: cicloConfig.apenasNaoAprendidosObrigatorio,
       });
       if (ciclo.cards.length === 0) {
         Alert.alert('Ciclo Vazio', 'Nenhum card disponível para o ciclo de estudo com as configurações atuais.');
@@ -820,33 +885,98 @@ function DeckListScreen({ decks = [], totalCardsCount = 0, deckStats = [] }) {
   }, [filteredDecks, deckStatsMap, sortMode]);
 
   return (
-    <View style={[styles.screen, { paddingTop: insets.top }]}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => setMenuVisible(true)} style={styles.hBtn}>
-          <Text style={styles.hIcon}>☰</Text>
-        </TouchableOpacity>
-        <View style={{ flex: 1 }}>
-          <TextInput
-            style={{ color: theme.white, backgroundColor: theme.card, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, marginHorizontal: 8 }}
-            placeholder="Pesquisar conjuntos e cartões..."
-            placeholderTextColor={theme.gray}
-            value={cardSearchQuery}
-            onChangeText={setCardSearchQuery}
-          />
+    <View style={[styles.screen, { backgroundColor: theme.bg }]}>
+      {/* Header Principal */}
+      <View style={{
+        paddingHorizontal: 20,
+        paddingTop: insets.top + 8,
+        paddingBottom: 12,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        backgroundColor: theme.bg,
+      }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+          <TouchableOpacity
+            onPress={() => setMenuVisible(true)}
+            style={{
+                width: 44,
+                height: 44,
+                borderRadius: 12,
+              backgroundColor: theme.surface,
+              borderWidth: 1,
+              borderColor: theme.border,
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <Ionicons name="menu-outline" size={24} color={theme.textPrimary} />
+          </TouchableOpacity>
+          <View>
+            <Text style={{ fontSize: 13, color: theme.textSecondary, fontWeight: '600' }}>Flashcards Pro</Text>
+            <Text style={{ fontSize: 22, fontWeight: '800', color: theme.textPrimary }}>Meus Baralhos</Text>
+          </View>
         </View>
-        <TouchableOpacity style={styles.hBtn} onPress={() => setIsSearching(!isSearching)}>
-          <Text style={styles.hIcon}>🔍</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.hBtn}>
-          <Text style={styles.hIcon}>⋮</Text>
-        </TouchableOpacity>
+
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          <TouchableOpacity
+            onPress={() => setIsSearching(!isSearching)}
+            style={{
+              width: 44,
+              height: 44,
+              borderRadius: 12,
+              backgroundColor: isSearching ? theme.accentSoft : theme.surface,
+              borderWidth: 1,
+              borderColor: isSearching ? theme.accent : theme.border,
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <Ionicons name={isSearching ? "close-outline" : "search-outline"} size={22} color={isSearching ? theme.accent : theme.textPrimary} />
+          </TouchableOpacity>
+        </View>
       </View>
 
+      {/* Campo de Pesquisa */}
+      {isSearching && (
+        <View style={{ paddingHorizontal: 20, marginBottom: 12 }}>
+          <View style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            backgroundColor: theme.surface,
+            borderWidth: 1,
+            borderColor: theme.accent,
+            borderRadius: 14,
+            paddingHorizontal: 14,
+            height: 48,
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.05,
+            shadowRadius: 8,
+            elevation: 2,
+          }}>
+            <Ionicons name="search-outline" size={20} color={theme.accent} style={{ marginRight: 8 }} />
+            <TextInput
+              style={{ flex: 1, color: theme.textPrimary, fontSize: 15 }}
+              placeholder="Pesquisar baralhos e cartões..."
+              placeholderTextColor={theme.textSecondary}
+              value={cardSearchQuery}
+              onChangeText={setCardSearchQuery}
+              autoFocus
+            />
+            {cardSearchQuery.length > 0 && (
+              <TouchableOpacity onPress={() => setCardSearchQuery('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <Ionicons name="close-circle" size={18} color={theme.textSecondary} />
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
+      )}
 
-
+      {/* Resultados da busca direta em cartões */}
       {cardSearchResults.length > 0 && (
-        <View style={{ backgroundColor: theme.card, marginHorizontal: 16, borderRadius: 8, padding: 8, marginBottom: 12, maxHeight: 150 }}>
-          <Text style={{ color: theme.gray, fontSize: 12, marginBottom: 8 }}>Resultados encontrados ({cardSearchResults.length}):</Text>
+        <View style={{ backgroundColor: theme.surface, marginHorizontal: 20, borderRadius: 14, padding: 12, marginBottom: 12, maxHeight: 180, borderWidth: 1, borderColor: theme.border, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.08, shadowRadius: 10, elevation: 3 }}>
+          <Text style={{ color: theme.textSecondary, fontSize: 12, fontWeight: '600', marginBottom: 8 }}>Resultados encontrados ({cardSearchResults.length}):</Text>
           <FlatList
             data={cardSearchResults}
             keyExtractor={item => String(item.id)}
@@ -854,15 +984,15 @@ function DeckListScreen({ decks = [], totalCardsCount = 0, deckStats = [] }) {
               const parentDeck = decks.find(d => d.id === item.set_id);
               return (
                 <TouchableOpacity
-                  style={{ paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: theme.sep }}
+                  style={{ paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: theme.border }}
                   onPress={() => {
                     setCardSearchQuery('');
                     navigation.navigate('DeckDetails', { deckId: item.set_id });
                   }}
                 >
-                  <Text style={{ color: theme.white, fontWeight: 'bold' }}>{item.front}</Text>
-                  <Text style={{ color: theme.gray }}>{item.back}</Text>
-                  {parentDeck && <Text style={{ color: theme.purple || '#BB86FC', fontSize: 11, marginTop: 2 }}>📁 {parentDeck.title}</Text>}
+                  <Text style={{ color: theme.textPrimary, fontWeight: '700', fontSize: 14 }}>{item.front}</Text>
+                  <Text style={{ color: theme.textSecondary, fontSize: 13, marginTop: 2 }}>{item.back}</Text>
+                  {parentDeck && <Text style={{ color: theme.accent, fontSize: 11, marginTop: 4, fontWeight: '600' }}>📁 {parentDeck.title}</Text>}
                 </TouchableOpacity>
               );
             }}
@@ -870,44 +1000,213 @@ function DeckListScreen({ decks = [], totalCardsCount = 0, deckStats = [] }) {
         </View>
       )}
 
-      <TouchableOpacity style={styles.pill} onPress={() => {/* onOpenWorkspace */ }} activeOpacity={0.7}>
-        <Text style={styles.pillText}>{'Todos os conjuntos'}</Text>
-        <View style={styles.pillIconWrapper}><Text style={styles.pillUpload}>▼</Text></View>
-      </TouchableOpacity>
+      {/* Painel de Metas & Estatísticas Rápidas */}
+      <View style={{ paddingHorizontal: 20, marginBottom: 12 }}>
+        <View style={{
+          backgroundColor: theme.surface,
+          borderRadius: 14,
+          padding: 14,
+          borderWidth: 1,
+          borderColor: theme.border,
+        }}>
+          {/* Top row da Meta */}
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+              <View style={{
+                width: 34,
+                height: 34,
+                borderRadius: 10,
+                backgroundColor: theme.accentSoft,
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}>
+                <Ionicons name="flame" size={22} color={theme.accent} />
+              </View>
+              <View>
+                <Text style={{ fontSize: 12, color: theme.textSecondary, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                  Meta Diária
+                </Text>
+                <Text style={{ fontSize: 16, fontWeight: '700', color: theme.textPrimary }}>
+                  {cardsReviewedToday} <Text style={{ fontSize: 13, fontWeight: '500', color: theme.textSecondary }}>/ {dailyGoal} revisados hoje</Text>
+                </Text>
+              </View>
+            </View>
 
-      <View style={styles.actionRow}>
-        <TouchableOpacity onPress={handleReviewAll}>
-          <Text style={styles.actionBtn}>REVISÃO</Text>
-        </TouchableOpacity>
-        <TouchableOpacity onPress={handlePracticeAll}>
-          <Text style={styles.actionBtn}>PRATICA</Text>
-        </TouchableOpacity>
-        <TouchableOpacity onPress={handleCycleStudy}>
-          <Text style={[styles.actionBtn, { color: '#4DA8DA' }]}>📚 CICLO</Text>
-        </TouchableOpacity>
-        <TouchableOpacity onPress={handleFindDuplicateCards}>
-          <Text style={[styles.actionBtn, { color: '#FF9800' }]}>DUPLICATAS</Text>
-        </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => setDailyGoalMenuVisible(true)}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              style={{ width: 32, height: 32, alignItems: 'center', justifyContent: 'center', borderRadius: 8 }}
+            >
+              <Ionicons name="ellipsis-horizontal" size={18} color={theme.textSecondary} />
+            </TouchableOpacity>
+          </View>
+
+          {/* Barra de progresso da meta */}
+          <View style={{ marginTop: 12, marginBottom: 14 }}>
+            <View style={{ height: 5, backgroundColor: theme.border, borderRadius: 3, overflow: 'hidden' }}>
+              <View
+                style={{
+                  height: '100%',
+                  width: `${Math.min((cardsReviewedToday / (dailyGoal || 1)) * 100, 100)}%`,
+                  backgroundColor: theme.accent,
+                  borderRadius: 3,
+                }}
+              />
+            </View>
+          </View>
+
+          {/* Divisor sutil e estatísticas secundárias */}
+          <View style={{ height: 1, backgroundColor: theme.border, marginBottom: 12 }} />
+
+          <View style={{ flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center' }}>
+            <View style={{ alignItems: 'center' }}>
+              <Text style={{ fontSize: 18, fontWeight: '800', color: theme.textPrimary, fontVariant: ['tabular-nums'] }}>
+                {totalCardsCount}
+              </Text>
+              <Text style={{ fontSize: 11, color: theme.textSecondary, fontWeight: '600', marginTop: 1 }}>
+                Total de Cards
+              </Text>
+            </View>
+            <View style={{ width: 1, height: 24, backgroundColor: theme.border }} />
+            <View style={{ alignItems: 'center' }}>
+              <Text style={{ fontSize: 18, fontWeight: '800', color: theme.textPrimary, fontVariant: ['tabular-nums'] }}>
+                {decks.length}
+              </Text>
+              <Text style={{ fontSize: 11, color: theme.textSecondary, fontWeight: '600', marginTop: 1 }}>
+                Baralhos
+              </Text>
+            </View>
+            <View style={{ width: 1, height: 24, backgroundColor: theme.border }} />
+            <View style={{ alignItems: 'center' }}>
+              <Text style={{ fontSize: 18, fontWeight: '800', color: theme.success, fontVariant: ['tabular-nums'] }}>
+                {Math.round(totalCardsCount > 0 ? (deckStats.reduce((acc, curr) => acc + (curr.memorized || 0), 0) / totalCardsCount) * 100 : 0)}%
+              </Text>
+              <Text style={{ fontSize: 11, color: theme.textSecondary, fontWeight: '600', marginTop: 1 }}>
+                Domínio Médio
+              </Text>
+            </View>
+          </View>
+        </View>
       </View>
 
-      <TouchableOpacity 
-        style={{ flexDirection: 'row', alignItems: 'center', marginHorizontal: 16, marginBottom: 12, paddingVertical: 8 }}
-        onPress={() => setSortMenuVisible(true)}
-      >
-        <Ionicons name="filter" size={16} color={theme.gray} style={{ marginRight: 6 }} />
-        <Text style={{ color: theme.gray, fontSize: 14 }}>
-          Ordenar por: <Text style={{ color: theme.white, fontWeight: 'bold' }}>{SORT_MODES.find(m => m.key === sortMode)?.label}</Text>
-        </Text>
-      </TouchableOpacity>
+      {/* Ações Rápidas de Estudo */}
+      <View style={{ paddingHorizontal: 20, marginBottom: 14 }}>
+        <View style={{ flexDirection: 'row', gap: 8 }}>
+          <TouchableOpacity
+            onPress={handleReviewAll}
+            activeOpacity={0.8}
+            style={{
+              flex: 1.2,
+              backgroundColor: theme.accent,
+              borderRadius: 12,
+              minHeight: 46,
+              paddingVertical: 10,
+              paddingHorizontal: 4,
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexDirection: 'row',
+              gap: 4,
+            }}
+          >
+            <Ionicons name="refresh" size={16} color="#fff" />
+            <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }}>Revisão</Text>
+          </TouchableOpacity>
 
-      <View style={styles.dailyGoal}>
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-          <Text style={[styles.dailyGoalText, { marginBottom: 0 }]}>meta diária: {cardsReviewedToday}/{dailyGoal}  •  {totalCardsCount} {totalCardsCount === 1 ? 'cartão no total' : 'cartões no total'}</Text>
-          <TouchableOpacity onPress={() => setDailyGoalMenuVisible(true)}>
-            <Text style={{ color: theme.white, fontSize: 18, fontWeight: 'bold' }}>⋮</Text>
+          <TouchableOpacity
+            onPress={handleCycleStudy}
+            activeOpacity={0.8}
+            style={{
+              flex: 1,
+              backgroundColor: theme.surface,
+              borderRadius: 12,
+              minHeight: 46,
+              paddingVertical: 10,
+              paddingHorizontal: 4,
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexDirection: 'row',
+              gap: 4,
+              borderWidth: 1,
+              borderColor: theme.border,
+            }}
+          >
+            <Ionicons name="sync" size={16} color={theme.textPrimary} />
+            <Text style={{ color: theme.textPrimary, fontSize: 12, fontWeight: '600' }}>Ciclo</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={handlePracticeAll}
+            activeOpacity={0.8}
+            style={{
+              flex: 1,
+              backgroundColor: theme.surface,
+              borderRadius: 12,
+              minHeight: 46,
+              paddingVertical: 10,
+              paddingHorizontal: 4,
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexDirection: 'row',
+              gap: 4,
+              borderWidth: 1,
+              borderColor: theme.border,
+            }}
+          >
+            <Ionicons name="create-outline" size={16} color={theme.textPrimary} />
+            <Text style={{ color: theme.textPrimary, fontSize: 12, fontWeight: '600' }}>Prática</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={handleFindDuplicateCards}
+            activeOpacity={0.8}
+            accessibilityLabel="Detectar duplicatas"
+            style={{
+              width: 46,
+              backgroundColor: theme.surface,
+              borderRadius: 12,
+              minHeight: 46,
+              paddingVertical: 10,
+              alignItems: 'center',
+              justifyContent: 'center',
+              borderWidth: 1,
+              borderColor: theme.border,
+            }}
+          >
+            <Ionicons name="copy-outline" size={17} color={theme.textSecondary} />
           </TouchableOpacity>
         </View>
-        <ProgressBar value={dailyGoal > 0 ? (cardsReviewedToday / dailyGoal) * 100 : 0} color={theme.purple} theme={theme} />
+      </View>
+
+      {/* Cabeçalho da Lista de Baralhos & Ordenação */}
+      <View style={{
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingHorizontal: 20,
+        marginBottom: 10,
+      }}>
+        <Text style={{ fontSize: 16, fontWeight: '700', color: theme.textPrimary }}>
+          Baralhos ({sortedDecks.length})
+        </Text>
+        <TouchableOpacity
+          onPress={() => setSortMenuVisible(true)}
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 4,
+            backgroundColor: theme.surface,
+            paddingHorizontal: 10,
+            paddingVertical: 6,
+            borderRadius: 10,
+            borderWidth: 1,
+            borderColor: theme.border,
+          }}
+        >
+          <Ionicons name="swap-vertical" size={14} color={theme.textSecondary} />
+          <Text style={{ fontSize: 12, fontWeight: '600', color: theme.textSecondary }}>
+            {SORT_MODES.find(m => m.key === sortMode)?.label}
+          </Text>
+        </TouchableOpacity>
       </View>
 
       <FlatList
@@ -924,31 +1223,117 @@ function DeckListScreen({ decks = [], totalCardsCount = 0, deckStats = [] }) {
             />
           );
         }}
-        contentContainerStyle={{ paddingBottom: 148 }}
+        ListEmptyComponent={
+          <View style={{ alignItems: 'center', justifyContent: 'center', paddingVertical: 48, paddingHorizontal: 32 }}>
+            <View style={{
+              width: 72,
+              height: 72,
+              borderRadius: 24,
+              backgroundColor: theme.surface,
+              borderWidth: 1,
+              borderColor: theme.border,
+              alignItems: 'center',
+              justifyContent: 'center',
+              marginBottom: 16,
+            }}>
+              <Ionicons name="library-outline" size={36} color={theme.textSecondary} />
+            </View>
+            <Text style={{ fontSize: 17, fontWeight: '700', color: theme.textPrimary, textAlign: 'center', marginBottom: 6 }}>
+              {cardSearchQuery ? 'Nenhum baralho encontrado' : 'Nenhum baralho ainda'}
+            </Text>
+            <Text style={{ fontSize: 13, color: theme.textSecondary, textAlign: 'center', lineHeight: 18, marginBottom: 20 }}>
+              {cardSearchQuery
+                ? 'Tente pesquisar por outro termo ou limpe a pesquisa.'
+                : 'Crie seu primeiro conjunto de flashcards para iniciar seus estudos!'}
+            </Text>
+            {!cardSearchQuery && (
+              <TouchableOpacity
+                onPress={() => setDeckModal(true)}
+                style={{
+                  backgroundColor: theme.accent,
+                  paddingHorizontal: 20,
+                  paddingVertical: 12,
+                  borderRadius: 12,
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 8,
+                }}
+              >
+                <Ionicons name="add" size={18} color="#fff" />
+                <Text style={{ color: '#fff', fontSize: 14, fontWeight: '700' }}>Criar Baralho</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        }
+        contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 110 }}
         style={{ flex: 1 }}
       />
 
-      <View style={styles.footer}>
-        <TouchableOpacity style={styles.footerOut}>
-          <Text style={styles.footerOutText}>CONJUNTOS EXTERNOS</Text>
+      {/* Barra de Ação Inferior Flutuante */}
+      <View style={{
+        position: 'absolute',
+        bottom: 0,
+        left: 0,
+        right: 0,
+        backgroundColor: theme.surface,
+        borderTopWidth: 1,
+        borderTopColor: theme.border,
+        paddingHorizontal: 20,
+        paddingTop: 10,
+        paddingBottom: Math.max(insets.bottom, 12),
+        flexDirection: 'row',
+        gap: 10,
+      }}>
+        <TouchableOpacity
+          onPress={handleImport}
+          style={{
+            flex: 1,
+            backgroundColor: theme.surface,
+            borderWidth: 1,
+            borderColor: theme.border,
+            borderRadius: 12,
+            height: 48,
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 8,
+          }}
+        >
+          <Ionicons name="cloud-download-outline" size={17} color={theme.textPrimary} />
+          <Text style={{ fontSize: 13, fontWeight: '600', color: theme.textPrimary }}>Importar</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.footerFill} onPress={() => setDeckModal(true)}>
-          <Text style={styles.footerFillText}>+ CRIAR CONJUNTO</Text>
+
+        <TouchableOpacity
+          onPress={() => setDeckModal(true)}
+          style={{
+            flex: 1.3,
+            backgroundColor: theme.accent,
+            borderRadius: 12,
+            height: 48,
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 8,
+          }}
+        >
+          <Ionicons name="add" size={21} color="#fff" />
+          <Text style={{ fontSize: 14, fontWeight: '700', color: '#fff' }}>Novo Baralho</Text>
         </TouchableOpacity>
       </View>
 
       <Modal visible={menuAtivo !== null} transparent={true} animationType="fade" onRequestClose={() => setMenuAtivo(null)}>
         <TouchableOpacity style={styles.contextOverlay} activeOpacity={1} onPress={() => setMenuAtivo(null)}>
-          <View style={styles.contextMenu}>
-            <TouchableOpacity style={styles.contextMenuItem} onPress={() => handleMenuClick('edit')}><Text style={styles.contextMenuText}>Editar</Text></TouchableOpacity>
-            <TouchableOpacity style={styles.contextMenuItem} onPress={() => handleMenuClick('add')}><Text style={styles.contextMenuText}>Adicionar Cartões</Text></TouchableOpacity>
-            <TouchableOpacity style={styles.contextMenuItem} onPress={() => handleMenuClick('share')}><Text style={styles.contextMenuText}>Compartilhar</Text></TouchableOpacity>
-            <TouchableOpacity style={styles.contextMenuItem} onPress={() => handleMenuClick('archive')}><Text style={styles.contextMenuText}>Arquivar</Text></TouchableOpacity>
-            <TouchableOpacity style={styles.contextMenuItem} onPress={() => handleMenuClick('export')}><Text style={styles.contextMenuText}>Exportar Cartões</Text></TouchableOpacity>
-            <TouchableOpacity style={styles.contextMenuItem} onPress={() => { Alert.alert('Em breve!'); setMenuAtivo(null); }}><Text style={styles.contextMenuText}>Mesclar conjuntos</Text></TouchableOpacity>
-            <TouchableOpacity style={styles.contextMenuItem} onPress={() => { Alert.alert('Em breve!'); setMenuAtivo(null); }}><Text style={styles.contextMenuText}>Mover os cartões</Text></TouchableOpacity>
+          <View style={[styles.contextMenu, { borderRadius: 16, paddingVertical: 8, width: 260 }]}>
+            <TouchableOpacity style={styles.contextMenuItem} onPress={() => handleMenuClick('edit')}><Text style={styles.contextMenuText}>✏️  Editar</Text></TouchableOpacity>
+            <TouchableOpacity style={styles.contextMenuItem} onPress={() => handleMenuClick('add')}><Text style={styles.contextMenuText}>➕  Adicionar Cartões</Text></TouchableOpacity>
+            <TouchableOpacity style={styles.contextMenuItem} onPress={() => handleMenuClick('share')}><Text style={styles.contextMenuText}>🔗  Compartilhar</Text></TouchableOpacity>
+            <TouchableOpacity style={styles.contextMenuItem} onPress={() => handleMenuClick('archive')}><Text style={styles.contextMenuText}>📦  Arquivar</Text></TouchableOpacity>
+            <TouchableOpacity style={styles.contextMenuItem} onPress={() => handleMenuClick('export')}><Text style={styles.contextMenuText}>📤  Exportar Cartões</Text></TouchableOpacity>
+            <TouchableOpacity style={styles.contextMenuItem} onPress={() => { Alert.alert('Em breve!'); setMenuAtivo(null); }}><Text style={styles.contextMenuText}>🔀  Mesclar conjuntos</Text></TouchableOpacity>
+            <TouchableOpacity style={styles.contextMenuItem} onPress={() => { Alert.alert('Em breve!'); setMenuAtivo(null); }}><Text style={styles.contextMenuText}>📂  Mover os cartões</Text></TouchableOpacity>
+            <View style={{ height: 1, backgroundColor: theme.border, marginVertical: 4 }} />
             <TouchableOpacity style={styles.contextMenuItem} onPress={() => { onDeleteDeck(menuAtivo); setMenuAtivo(null); }}>
-              <Text style={[styles.contextMenuText, { color: '#F44336' }]}>Excluir</Text>
+              <Text style={[styles.contextMenuText, { color: theme.danger, fontWeight: '700' }]}>🗑️  Excluir</Text>
             </TouchableOpacity>
           </View>
         </TouchableOpacity>
@@ -978,7 +1363,7 @@ function DeckListScreen({ decks = [], totalCardsCount = 0, deckStats = [] }) {
               >
                 <Text style={[
                   styles.contextMenuText, 
-                  sortMode === option.key && { color: theme.blue || '#4DA8DA', fontWeight: 'bold' }
+                  sortMode === option.key && { color: theme.accent, fontWeight: 'bold' }
                 ]}>
                   {option.label}
                 </Text>
@@ -992,15 +1377,15 @@ function DeckListScreen({ decks = [], totalCardsCount = 0, deckStats = [] }) {
         <View style={styles.wsModalOverlay}>
           <View style={styles.wsModalBox}>
             <Text style={styles.wsModalTitle}>Editar Conjunto</Text>
-            <TextInput style={styles.wsInput} placeholder="Nome" placeholderTextColor="#666" value={editTitle} onChangeText={setEditTitle} />
-            <TextInput style={[styles.wsInput, { marginTop: 10 }]} placeholder="Descrição" placeholderTextColor="#666" value={editDesc} onChangeText={setEditDesc} />
+            <TextInput style={styles.wsInput} placeholder="Nome" placeholderTextColor={theme.textSecondary} value={editTitle} onChangeText={setEditTitle} />
+            <TextInput style={[styles.wsInput, { marginTop: 10 }]} placeholder="Descrição" placeholderTextColor={theme.textSecondary} value={editDesc} onChangeText={setEditDesc} />
             <Text style={{ color: theme.gray, fontSize: 12, marginTop: 10, marginBottom: 4 }}>Idioma da Frente:</Text>
             <TouchableOpacity style={styles.wsInput} onPress={() => openLangPicker('editFront')}>
-              <Text style={{ color: editFrontLang ? theme.white : '#666' }}>{renderLangDisplay(editFrontLang)}</Text>
+              <Text style={{ color: editFrontLang ? theme.textPrimary : theme.textSecondary }}>{renderLangDisplay(editFrontLang)}</Text>
             </TouchableOpacity>
             <Text style={{ color: theme.gray, fontSize: 12, marginTop: 10, marginBottom: 4 }}>Idioma do Verso:</Text>
             <TouchableOpacity style={styles.wsInput} onPress={() => openLangPicker('editBack')}>
-              <Text style={{ color: editBackLang ? theme.white : '#666' }}>{renderLangDisplay(editBackLang)}</Text>
+              <Text style={{ color: editBackLang ? theme.textPrimary : theme.textSecondary }}>{renderLangDisplay(editBackLang)}</Text>
             </TouchableOpacity>
             <View style={styles.wsModalActions}>
               <TouchableOpacity onPress={() => setEditModal(false)}><Text style={styles.wsModalCancel}>Cancelar</Text></TouchableOpacity>
@@ -1016,16 +1401,16 @@ function DeckListScreen({ decks = [], totalCardsCount = 0, deckStats = [] }) {
         <View style={styles.wsModalOverlay}>
           <View style={styles.wsModalBox}>
             <Text style={styles.wsModalTitle}>Adicionar Cartão</Text>
-            <TextInput style={styles.wsInput} placeholder="Frente (Pergunta)" placeholderTextColor="#666" value={cardFront} onChangeText={setCardFront} />
-            <TextInput style={[styles.wsInput, { marginTop: 10 }]} placeholder="Verso (Resposta)" placeholderTextColor="#666" value={cardBack} onChangeText={setCardBack} />
-            <TextInput style={[styles.wsInput, { marginTop: 10 }]} placeholder="Tag (Opcional)" placeholderTextColor="#666" value={cardTag} onChangeText={setCardTag} />
+            <TextInput style={styles.wsInput} placeholder="Frente (Pergunta)" placeholderTextColor={theme.textSecondary} value={cardFront} onChangeText={setCardFront} />
+            <TextInput style={[styles.wsInput, { marginTop: 10 }]} placeholder="Verso (Resposta)" placeholderTextColor={theme.textSecondary} value={cardBack} onChangeText={setCardBack} />
+            <TextInput style={[styles.wsInput, { marginTop: 10 }]} placeholder="Tag (Opcional)" placeholderTextColor={theme.textSecondary} value={cardTag} onChangeText={setCardTag} />
             <View style={styles.wsModalActions}>
               <TouchableOpacity onPress={() => setCardModal(false)}><Text style={styles.wsModalCancel}>Cancelar</Text></TouchableOpacity>
               <TouchableOpacity onPress={() => { if (cardFront.trim() && cardBack.trim()) { onAddCard(actionDeckId, cardFront, cardBack, cardTag); setCardFront(''); setCardBack(''); setCardTag(''); } }}>
                 <View style={styles.wsModalConfirm}><Text style={styles.wsModalConfirmText}>Adicionar +</Text></View>
               </TouchableOpacity>
               <TouchableOpacity onPress={() => { if (cardFront.trim() && cardBack.trim()) { onAddCard(actionDeckId, cardFront, cardBack, cardTag); } setCardModal(false); }}>
-                <View style={[styles.wsModalConfirm, { backgroundColor: '#4CAF50' }]}><Text style={styles.wsModalConfirmText}>Concluir</Text></View>
+                <View style={[styles.wsModalConfirm, { backgroundColor: theme.success }]}><Text style={styles.wsModalConfirmText}>Concluir</Text></View>
               </TouchableOpacity>
             </View>
           </View>
@@ -1075,7 +1460,7 @@ function DeckListScreen({ decks = [], totalCardsCount = 0, deckStats = [] }) {
                           <Text style={{ color: theme.gray, fontSize: 13 }}>{card.back}</Text>
                         </View>
                         <TouchableOpacity onPress={() => handleDeleteDuplicate(card.id)} style={{ padding: 8 }}>
-                          <Text style={{ color: '#FF6B6B', fontSize: 18 }}>🗑️</Text>
+                          <Text style={{ color: theme.danger, fontSize: 18 }}>🗑️</Text>
                         </TouchableOpacity>
                       </View>
                     ))}
@@ -1117,14 +1502,14 @@ function DeckListScreen({ decks = [], totalCardsCount = 0, deckStats = [] }) {
 
             <Text style={{ color: theme.white, fontSize: 14, fontWeight: 'bold', marginBottom: 8 }}>Opção 1: Arquivo (.txt / .md)</Text>
             <TouchableOpacity onPress={handleFileImport} style={{ marginBottom: 16 }}>
-              <View style={[styles.wsModalConfirm, { width: '100%', backgroundColor: theme.purple || '#673AB7' }]}>
+              <View style={[styles.wsModalConfirm, { width: '100%', backgroundColor: theme.accent }]}>
                 <Text style={styles.wsModalConfirmText}>📂 Selecionar Arquivo</Text>
               </View>
             </TouchableOpacity>
 
             <Text style={{ color: theme.white, fontSize: 14, fontWeight: 'bold', marginBottom: 8 }}>Opção 2: Área de Transferência (JSON)</Text>
             <TouchableOpacity onPress={handleJSONClipboardImport} style={{ marginBottom: 16 }}>
-              <View style={[styles.wsModalConfirm, { width: '100%', backgroundColor: '#2196F3' }]}>
+              <View style={[styles.wsModalConfirm, { width: '100%', backgroundColor: theme.accent }]}>
                 <Text style={styles.wsModalConfirmText}>📋 Importar JSON Copiado</Text>
               </View>
             </TouchableOpacity>
@@ -1139,7 +1524,7 @@ function DeckListScreen({ decks = [], totalCardsCount = 0, deckStats = [] }) {
               }}
               style={{ marginBottom: 12 }}
             >
-              <View style={[styles.wsModalConfirm, { width: '100%', backgroundColor: '#4CAF50' }]}>
+              <View style={[styles.wsModalConfirm, { width: '100%', backgroundColor: theme.success }]}>
                 <Text style={styles.wsModalConfirmText}>🧪 Preencher Texto de Teste (TXT)</Text>
               </View>
             </TouchableOpacity>
@@ -1148,7 +1533,7 @@ function DeckListScreen({ decks = [], totalCardsCount = 0, deckStats = [] }) {
             <TextInput
               style={[styles.wsInput, { height: 120, textAlignVertical: 'top' }]}
               placeholder="Cole pequenos conjuntos aqui..."
-              placeholderTextColor="#666"
+              placeholderTextColor={theme.textSecondary}
               multiline
               scrollEnabled
               maxLength={3500}
@@ -1178,7 +1563,7 @@ function DeckListScreen({ decks = [], totalCardsCount = 0, deckStats = [] }) {
             <TextInput 
               style={styles.wsInput} 
               placeholder="Ex: meus_flashcards" 
-              placeholderTextColor="#666" 
+              placeholderTextColor={theme.textSecondary}
               value={exportFileName} 
               onChangeText={setExportFileName} 
             />
@@ -1210,8 +1595,8 @@ function DeckListScreen({ decks = [], totalCardsCount = 0, deckStats = [] }) {
               <Switch
                 value={autoPlayAudio}
                 onValueChange={handleSetAutoPlayAudio}
-                trackColor={{ false: theme.sep, true: theme.purple || '#673AB7' }}
-                thumbColor={'#FFF'}
+                trackColor={{ false: theme.border, true: theme.accent }}
+                thumbColor={theme.appBarText}
               />
             </View>
 
@@ -1230,7 +1615,7 @@ function DeckListScreen({ decks = [], totalCardsCount = 0, deckStats = [] }) {
                       setVoiceSelectionModalVisible(true);
                     }}
                   >
-                    <Text style={{ color: theme.purple || '#673AB7', fontSize: 13, textAlign: 'center', fontWeight: 'bold' }} numberOfLines={1}>
+                    <Text style={{ color: theme.accent, fontSize: 13, textAlign: 'center', fontWeight: 'bold' }} numberOfLines={1}>
                       {preferredVoices?.[lang.code] ? (availableVoices.find(v => v.identifier === preferredVoices[lang.code])?.name || 'Personalizada') : 'Padrão'}
                     </Text>
                   </TouchableOpacity>
@@ -1240,7 +1625,7 @@ function DeckListScreen({ decks = [], totalCardsCount = 0, deckStats = [] }) {
 
             <View style={styles.wsModalActions}>
               <TouchableOpacity onPress={() => setVoicesConfigModalVisible(false)}>
-                <View style={[styles.wsModalConfirm, { width: '100%', backgroundColor: theme.purple || '#673AB7', minWidth: 100, alignItems: 'center' }]}>
+                <View style={[styles.wsModalConfirm, { width: '100%', backgroundColor: theme.accent, minWidth: 100, alignItems: 'center' }]}>
                   <Text style={styles.wsModalConfirmText}>Concluir</Text>
                 </View>
               </TouchableOpacity>
@@ -1275,7 +1660,7 @@ function DeckListScreen({ decks = [], totalCardsCount = 0, deckStats = [] }) {
               handleSetPreferredVoice(selectedLang, null);
               setVoiceSelectionModalVisible(false);
             }}>
-              <Text style={{ color: '#F44336', textAlign: 'center' }}>Restaurar Padrão do Sistema</Text>
+              <Text style={{ color: theme.danger, textAlign: 'center' }}>Restaurar Padrão do Sistema</Text>
             </TouchableOpacity>
             <TouchableOpacity style={{ padding: 12, backgroundColor: theme.card, borderRadius: 8, marginTop: 8 }} onPress={() => setVoiceSelectionModalVisible(false)}>
               <Text style={{ color: theme.white, textAlign: 'center' }}>Fechar</Text>
@@ -1286,31 +1671,31 @@ function DeckListScreen({ decks = [], totalCardsCount = 0, deckStats = [] }) {
 
       {/* Modal de Temas da Tela */}
       <Modal visible={themeModalVisible} transparent animationType="fade" onRequestClose={() => setThemeModalVisible(false)}>
-        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', padding: 20 }}>
-          <View style={{ backgroundColor: theme.card, width: '100%', borderRadius: 16, padding: 20 }}>
+        <View style={{ flex: 1, backgroundColor: theme.overlay, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
+          <View style={{ backgroundColor: theme.surface, borderColor: theme.border, borderWidth: 1, width: '100%', borderRadius: 14, padding: 20 }}>
             <Text style={{ fontSize: 18, fontWeight: 'bold', color: theme.white, marginBottom: 16 }}>Escolha um Tema</Text>
             
             <View style={{ gap: 10, marginBottom: 20 }}>
               {[
-                { id: 'light', label: 'Default Claro', colors: ['#F5F5F5', '#3B9EFF'] },
-                { id: 'dark', label: 'Default Escuro', colors: ['#1A1A1A', '#3B9EFF'] },
-                { id: 'neon_vibrant', label: 'Neon Vibrant', colors: ['#0A0A0A', '#00E5FF'] },
-                { id: 'earth_tones', label: 'Earth Tones', colors: ['#2B2521', '#B26A4F'] },
-                { id: 'arctic_cool', label: 'Arctic Cool', colors: ['#F0F4F8', '#29B6F6'] },
-                { id: 'pastel_dreams', label: 'Pastel Dreams', colors: ['#FFF8E1', '#F48FB1'] }
+                { id: 'light', label: 'Default Claro' },
+                { id: 'dark', label: 'Default Escuro' },
+                { id: 'neon_vibrant', label: 'Neon Vibrant' },
+                { id: 'earth_tones', label: 'Earth Tones' },
+                { id: 'arctic_cool', label: 'Arctic Cool' },
+                { id: 'pastel_dreams', label: 'Pastel Dreams' }
               ].map(t => (
                 <TouchableOpacity 
                   key={t.id} 
                   style={{ 
                     flexDirection: 'row', alignItems: 'center', padding: 14, 
                     borderRadius: 10, borderWidth: 2, 
-                    borderColor: themeName === t.id ? theme.blue : theme.sep,
-                    backgroundColor: t.colors[0] 
+                    borderColor: themeName === t.id ? theme.accent : theme.border,
+                    backgroundColor: getTheme(t.id).bg
                   }}
                   onPress={() => setAppTheme(t.id)}
                 >
-                  <View style={{ width: 16, height: 16, borderRadius: 8, backgroundColor: t.colors[1], marginRight: 12 }} />
-                  <Text style={{ flex: 1, fontWeight: 'bold', color: t.id === 'light' || t.id === 'arctic_cool' || t.id === 'pastel_dreams' ? '#000' : '#FFF' }}>
+                  <View style={{ width: 16, height: 16, borderRadius: 8, backgroundColor: getTheme(t.id).accent, marginRight: 12 }} />
+                  <Text style={{ flex: 1, fontWeight: 'bold', color: theme.textPrimary }}>
                     {t.label}
                   </Text>
                   {themeName === t.id && <Text style={{ color: theme.blue, fontWeight: 'bold' }}>✓</Text>}
@@ -1319,10 +1704,10 @@ function DeckListScreen({ decks = [], totalCardsCount = 0, deckStats = [] }) {
             </View>
 
             <TouchableOpacity 
-              style={{ backgroundColor: theme.blue, paddingVertical: 14, borderRadius: 10, alignItems: 'center' }} 
+              style={{ backgroundColor: theme.appBar, paddingVertical: 14, borderRadius: 10, alignItems: 'center' }}
               onPress={() => setThemeModalVisible(false)}
             >
-              <Text style={{ color: '#FFF', fontWeight: 'bold', fontSize: 16 }}>Fechar</Text>
+              <Text style={{ color: theme.appBarText, fontWeight: 'bold', fontSize: 16 }}>Fechar</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -1357,26 +1742,26 @@ function DeckListScreen({ decks = [], totalCardsCount = 0, deckStats = [] }) {
 
       {/* Modal de Tamanho do Texto */}
       <Modal visible={textSizeModalVisible} transparent animationType="fade" onRequestClose={() => setTextSizeModalVisible(false)}>
-        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: 20 }}>
-          <View style={{ backgroundColor: theme.card, width: '100%', borderRadius: 16, padding: 20 }}>
+        <View style={{ flex: 1, backgroundColor: theme.overlay, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
+          <View style={{ backgroundColor: theme.surface, borderColor: theme.border, borderWidth: 1, width: '100%', borderRadius: 14, padding: 20 }}>
             <Text style={{ fontSize: 18, fontWeight: 'bold', color: theme.white, marginBottom: 16 }}>Tamanho do Texto nos Cards</Text>
             
             {/* Card de Preview */}
-            <View style={{ backgroundColor: theme.reviewCard || '#E3F2FD', borderRadius: 12, padding: 20, minHeight: 120, justifyContent: 'center', alignItems: 'center', marginBottom: 20 }}>
+            <View style={{ backgroundColor: theme.accentSoft, borderRadius: 12, padding: 20, minHeight: 120, justifyContent: 'center', alignItems: 'center', marginBottom: 20 }}>
               <Text style={{ fontSize: tempTextSize, color: theme.white, fontWeight: 'bold', textAlign: 'center' }}>
                 Preview do Texto
               </Text>
             </View>
             
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 24 }}>
-              <TouchableOpacity style={{ backgroundColor: '#8DE8C7', width: 40, height: 40, borderRadius: 8, justifyContent: 'center', alignItems: 'center' }} onPress={() => setTempTextSize(Math.max(12, tempTextSize - 2))}>
-                <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#000' }}>-</Text>
+              <TouchableOpacity style={{ backgroundColor: theme.accentSoft, width: 44, height: 44, borderRadius: 10, justifyContent: 'center', alignItems: 'center' }} onPress={() => setTempTextSize(Math.max(12, tempTextSize - 2))}>
+                <Text style={{ fontSize: 24, fontWeight: 'bold', color: theme.accent }}>-</Text>
               </TouchableOpacity>
               
               <Text style={{ fontSize: 20, color: theme.white, marginHorizontal: 20, fontWeight: 'bold' }}>{tempTextSize}pt</Text>
               
-              <TouchableOpacity style={{ backgroundColor: '#8DE8C7', width: 40, height: 40, borderRadius: 8, justifyContent: 'center', alignItems: 'center' }} onPress={() => setTempTextSize(Math.min(60, tempTextSize + 2))}>
-                <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#000' }}>+</Text>
+              <TouchableOpacity style={{ backgroundColor: theme.accentSoft, width: 44, height: 44, borderRadius: 10, justifyContent: 'center', alignItems: 'center' }} onPress={() => setTempTextSize(Math.min(60, tempTextSize + 2))}>
+                <Text style={{ fontSize: 24, fontWeight: 'bold', color: theme.accent }}>+</Text>
               </TouchableOpacity>
             </View>
 
@@ -1384,11 +1769,11 @@ function DeckListScreen({ decks = [], totalCardsCount = 0, deckStats = [] }) {
               <TouchableOpacity style={{ padding: 12 }} onPress={() => setTextSizeModalVisible(false)}>
                 <Text style={{ color: theme.gray, fontWeight: 'bold' }}>Cancelar</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={{ backgroundColor: theme.blue, paddingVertical: 12, paddingHorizontal: 20, borderRadius: 8 }} onPress={() => {
+              <TouchableOpacity style={{ backgroundColor: theme.appBar, minHeight: 44, justifyContent: 'center', paddingHorizontal: 20, borderRadius: 8 }} onPress={() => {
                 updateSettings(0, tempTextSize, autoPlayAudio);
                 setTextSizeModalVisible(false);
               }}>
-                <Text style={{ color: '#FFF', fontWeight: 'bold' }}>Salvar</Text>
+                <Text style={{ color: theme.appBarText, fontWeight: 'bold' }}>Salvar</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -1396,35 +1781,35 @@ function DeckListScreen({ decks = [], totalCardsCount = 0, deckStats = [] }) {
       </Modal>
 
       <Modal visible={iconSizeModalVisible} transparent animationType="fade" onRequestClose={() => setIconSizeModalVisible(false)}>
-        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: 20 }}>
-          <View style={{ backgroundColor: theme.card, width: '100%', borderRadius: 16, padding: 20 }}>
+        <View style={{ flex: 1, backgroundColor: theme.overlay, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
+          <View style={{ backgroundColor: theme.surface, borderColor: theme.border, borderWidth: 1, width: '100%', borderRadius: 14, padding: 20 }}>
             <Text style={{ fontSize: 18, fontWeight: 'bold', color: theme.white, marginBottom: 16 }}>Tamanho padrão do ícone</Text>
 
-            <View style={{ backgroundColor: theme.reviewCard || '#E3F2FD', borderRadius: 12, padding: 20, minHeight: 160, justifyContent: 'center', alignItems: 'center', marginBottom: 20 }}>
+            <View style={{ backgroundColor: theme.accentSoft, borderRadius: 12, padding: 20, minHeight: 160, justifyContent: 'center', alignItems: 'center', marginBottom: 20 }}>
               <Text style={{ fontSize: tempIconSize, color: theme.white, fontWeight: 'bold', textAlign: 'center' }}>✨</Text>
               <Text style={{ color: theme.white, marginTop: 12 }}>Tamanho atual: {tempIconSize}</Text>
               <Text style={{ color: theme.white, marginTop: 4 }}>Posição vertical: {tempIconOffset}</Text>
             </View>
 
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
-              <TouchableOpacity style={{ backgroundColor: '#8DE8C7', width: 40, height: 40, borderRadius: 8, justifyContent: 'center', alignItems: 'center' }} onPress={() => setTempIconSize(Math.max(24, tempIconSize - 8))}>
-                <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#000' }}>-</Text>
+              <TouchableOpacity style={{ backgroundColor: theme.accentSoft, width: 44, height: 44, borderRadius: 10, justifyContent: 'center', alignItems: 'center' }} onPress={() => setTempIconSize(Math.max(24, tempIconSize - 8))}>
+                <Text style={{ fontSize: 24, fontWeight: 'bold', color: theme.accent }}>-</Text>
               </TouchableOpacity>
               
               <Text style={{ fontSize: 20, color: theme.white, marginHorizontal: 20, fontWeight: 'bold' }}>{tempIconSize}</Text>
               
-              <TouchableOpacity style={{ backgroundColor: '#8DE8C7', width: 40, height: 40, borderRadius: 8, justifyContent: 'center', alignItems: 'center' }} onPress={() => setTempIconSize(Math.min(120, tempIconSize + 8))}>
-                <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#000' }}>+</Text>
+              <TouchableOpacity style={{ backgroundColor: theme.accentSoft, width: 44, height: 44, borderRadius: 10, justifyContent: 'center', alignItems: 'center' }} onPress={() => setTempIconSize(Math.min(120, tempIconSize + 8))}>
+                <Text style={{ fontSize: 24, fontWeight: 'bold', color: theme.accent }}>+</Text>
               </TouchableOpacity>
             </View>
 
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 24 }}>
-              <TouchableOpacity style={{ backgroundColor: '#8DE8C7', width: 40, height: 40, borderRadius: 8, justifyContent: 'center', alignItems: 'center' }} onPress={() => setTempIconOffset(Math.max(-40, tempIconOffset - 4))}>
-                <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#000' }}>↑</Text>
+              <TouchableOpacity style={{ backgroundColor: theme.accentSoft, width: 44, height: 44, borderRadius: 10, justifyContent: 'center', alignItems: 'center' }} onPress={() => setTempIconOffset(Math.max(-40, tempIconOffset - 4))}>
+                <Text style={{ fontSize: 24, fontWeight: 'bold', color: theme.accent }}>↑</Text>
               </TouchableOpacity>
               <Text style={{ fontSize: 20, color: theme.white, marginHorizontal: 20, fontWeight: 'bold' }}>{tempIconOffset}</Text>
-              <TouchableOpacity style={{ backgroundColor: '#8DE8C7', width: 40, height: 40, borderRadius: 8, justifyContent: 'center', alignItems: 'center' }} onPress={() => setTempIconOffset(Math.min(40, tempIconOffset + 4))}>
-                <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#000' }}>↓</Text>
+              <TouchableOpacity style={{ backgroundColor: theme.accentSoft, width: 44, height: 44, borderRadius: 10, justifyContent: 'center', alignItems: 'center' }} onPress={() => setTempIconOffset(Math.min(40, tempIconOffset + 4))}>
+                <Text style={{ fontSize: 24, fontWeight: 'bold', color: theme.accent }}>↓</Text>
               </TouchableOpacity>
             </View>
 
@@ -1432,12 +1817,12 @@ function DeckListScreen({ decks = [], totalCardsCount = 0, deckStats = [] }) {
               <TouchableOpacity style={{ padding: 12 }} onPress={() => setIconSizeModalVisible(false)}>
                 <Text style={{ color: theme.gray, fontWeight: 'bold' }}>Cancelar</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={{ backgroundColor: theme.blue, paddingVertical: 12, paddingHorizontal: 20, borderRadius: 8 }} onPress={() => {
+              <TouchableOpacity style={{ backgroundColor: theme.appBar, minHeight: 44, justifyContent: 'center', paddingHorizontal: 20, borderRadius: 8 }} onPress={() => {
                 handleSetDefaultIconSize(tempIconSize);
                 handleSetDefaultIconOffset(tempIconOffset);
                 setIconSizeModalVisible(false);
               }}>
-                <Text style={{ color: '#FFF', fontWeight: 'bold' }}>Salvar</Text>
+                <Text style={{ color: theme.appBarText, fontWeight: 'bold' }}>Salvar</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -1446,7 +1831,7 @@ function DeckListScreen({ decks = [], totalCardsCount = 0, deckStats = [] }) {
 
       {/* Modal de Ajuda / Tutorial */}
       <Modal visible={helpModalVisible} transparent animationType="slide" onRequestClose={() => setHelpModalVisible(false)}>
-        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)' }}>
+        <View style={{ flex: 1, backgroundColor: theme.overlay }}>
           <View style={{ flex: 1, marginTop: 48, borderTopLeftRadius: 24, borderTopRightRadius: 24, backgroundColor: theme.bg, overflow: 'hidden' }}>
             {/* Header */}
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: theme.sep }}>
@@ -1458,14 +1843,14 @@ function DeckListScreen({ decks = [], totalCardsCount = 0, deckStats = [] }) {
 
             <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 20, paddingBottom: 40 }}>
               {/* Intro */}
-              <View style={{ backgroundColor: theme.purple || '#7B5CF5', borderRadius: 16, padding: 20, marginBottom: 24 }}>
-                <Text style={{ color: '#FFF', fontSize: 16, fontWeight: '600', lineHeight: 24 }}>Bem-vindo ao seu app de Flashcards! Aqui você cria conjuntos de cartões para estudar usando repetição espaçada. Veja abaixo todas as funcionalidades:</Text>
+              <View style={{ backgroundColor: theme.appBar, borderRadius: 14, padding: 20, marginBottom: 24 }}>
+                <Text style={{ color: theme.appBarText, fontSize: 16, fontWeight: '600', lineHeight: 24 }}>Bem-vindo ao seu app de Flashcards! Aqui você cria conjuntos de cartões para estudar usando repetição espaçada. Veja abaixo todas as funcionalidades:</Text>
               </View>
 
               {/* Seção 1 - Conjuntos */}
               <View style={{ marginBottom: 24 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
-                  <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: '#4CAF5022', justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
+                  <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: theme.accentSoft, justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
                     <Text style={{ fontSize: 20 }}>📚</Text>
                   </View>
                   <Text style={{ fontSize: 17, fontWeight: 'bold', color: theme.white }}>Conjuntos (Decks)</Text>
@@ -1476,7 +1861,7 @@ function DeckListScreen({ decks = [], totalCardsCount = 0, deckStats = [] }) {
               {/* Seção 2 - Cartões */}
               <View style={{ marginBottom: 24 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
-                  <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: '#2196F322', justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
+                  <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: theme.accentSoft, justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
                     <Text style={{ fontSize: 20 }}>🃏</Text>
                   </View>
                   <Text style={{ fontSize: 17, fontWeight: 'bold', color: theme.white }}>Cartões (Flashcards)</Text>
@@ -1487,7 +1872,7 @@ function DeckListScreen({ decks = [], totalCardsCount = 0, deckStats = [] }) {
               {/* Seção 3 - Pesquisa */}
               <View style={{ marginBottom: 24 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
-                  <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: '#FF980022', justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
+                  <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: theme.accentSoft, justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
                     <Text style={{ fontSize: 20 }}>🔍</Text>
                   </View>
                   <Text style={{ fontSize: 17, fontWeight: 'bold', color: theme.white }}>Barra de Pesquisa</Text>
@@ -1498,7 +1883,7 @@ function DeckListScreen({ decks = [], totalCardsCount = 0, deckStats = [] }) {
               {/* Seção 4 - Revisão */}
               <View style={{ marginBottom: 24 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
-                  <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: '#E91E6322', justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
+                  <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: theme.accentSoft, justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
                     <Text style={{ fontSize: 20 }}>🔄</Text>
                   </View>
                   <Text style={{ fontSize: 17, fontWeight: 'bold', color: theme.white }}>Revisão</Text>
@@ -1509,7 +1894,7 @@ function DeckListScreen({ decks = [], totalCardsCount = 0, deckStats = [] }) {
               {/* Seção 5 - Prática */}
               <View style={{ marginBottom: 24 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
-                  <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: '#9C27B022', justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
+                  <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: theme.accentSoft, justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
                     <Text style={{ fontSize: 20 }}>🏋️</Text>
                   </View>
                   <Text style={{ fontSize: 17, fontWeight: 'bold', color: theme.white }}>Prática</Text>
@@ -1520,18 +1905,18 @@ function DeckListScreen({ decks = [], totalCardsCount = 0, deckStats = [] }) {
               {/* Seção 6 - Ciclo de Estudo */}
               <View style={{ marginBottom: 24 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
-                  <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: '#4DA8DA22', justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
+                  <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: theme.accentSoft, justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
                     <Text style={{ fontSize: 20 }}>📚</Text>
                   </View>
                   <Text style={{ fontSize: 17, fontWeight: 'bold', color: theme.white }}>Ciclo de Estudo</Text>
                 </View>
-                <Text style={{ color: theme.gray, fontSize: 14, lineHeight: 22, marginLeft: 52 }}>O botão <Text style={{ color: '#4DA8DA', fontWeight: '600' }}>CICLO</Text> monta automaticamente uma sessão otimizada misturando cartões atrasados, obrigatórios, erros anteriores e importantes. Configure as quantidades em <Text style={{ color: theme.blue }}>Configurações</Text>.</Text>
+                <Text style={{ color: theme.textSecondary, fontSize: 14, lineHeight: 22, marginLeft: 52 }}>O botão <Text style={{ color: theme.accent, fontWeight: '600' }}>CICLO</Text> monta automaticamente uma sessão otimizada misturando cartões atrasados, obrigatórios, erros anteriores e importantes. Configure as quantidades em <Text style={{ color: theme.accent }}>Configurações</Text>.</Text>
               </View>
 
               {/* Seção 7 - Meta Diária */}
               <View style={{ marginBottom: 24 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
-                  <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: '#7B5CF522', justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
+                  <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: theme.accentSoft, justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
                     <Text style={{ fontSize: 20 }}>🎯</Text>
                   </View>
                   <Text style={{ fontSize: 17, fontWeight: 'bold', color: theme.white }}>Meta Diária</Text>
@@ -1542,7 +1927,7 @@ function DeckListScreen({ decks = [], totalCardsCount = 0, deckStats = [] }) {
               {/* Seção 8 - Importar */}
               <View style={{ marginBottom: 24 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
-                  <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: '#00BCD422', justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
+                  <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: theme.accentSoft, justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
                     <Text style={{ fontSize: 20 }}>📥</Text>
                   </View>
                   <Text style={{ fontSize: 17, fontWeight: 'bold', color: theme.white }}>Importar Conjuntos</Text>
@@ -1553,18 +1938,18 @@ function DeckListScreen({ decks = [], totalCardsCount = 0, deckStats = [] }) {
               {/* Seção 9 - Duplicatas */}
               <View style={{ marginBottom: 24 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
-                  <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: '#FF980022', justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
+                  <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: theme.accentSoft, justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
                     <Text style={{ fontSize: 20 }}>🔁</Text>
                   </View>
                   <Text style={{ fontSize: 17, fontWeight: 'bold', color: theme.white }}>Detectar Duplicatas</Text>
                 </View>
-                <Text style={{ color: theme.gray, fontSize: 14, lineHeight: 22, marginLeft: 52 }}>Toque em <Text style={{ color: '#FF9800', fontWeight: '600' }}>DUPLICATAS</Text> para encontrar e remover cartões repetidos nos seus conjuntos.</Text>
+                <Text style={{ color: theme.textSecondary, fontSize: 14, lineHeight: 22, marginLeft: 52 }}>Toque em <Text style={{ color: theme.warning, fontWeight: '600' }}>DUPLICATAS</Text> para encontrar e remover cartões repetidos nos seus conjuntos.</Text>
               </View>
 
               {/* Seção 10 - Estatísticas */}
               <View style={{ marginBottom: 24 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
-                  <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: '#3B9EFF22', justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
+                  <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: theme.accentSoft, justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
                     <Text style={{ fontSize: 20 }}>📊</Text>
                   </View>
                   <Text style={{ fontSize: 17, fontWeight: 'bold', color: theme.white }}>Estatísticas</Text>
@@ -1575,7 +1960,7 @@ function DeckListScreen({ decks = [], totalCardsCount = 0, deckStats = [] }) {
               {/* Seção 11 - Vozes */}
               <View style={{ marginBottom: 24 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
-                  <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: '#FF572222', justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
+                  <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: theme.accentSoft, justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
                     <Text style={{ fontSize: 20 }}>🗣️</Text>
                   </View>
                   <Text style={{ fontSize: 17, fontWeight: 'bold', color: theme.white }}>Vozes e Áudio</Text>
@@ -1586,7 +1971,7 @@ function DeckListScreen({ decks = [], totalCardsCount = 0, deckStats = [] }) {
               {/* Seção 12 - Tema */}
               <View style={{ marginBottom: 12 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
-                  <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: '#ffffff11', justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
+                  <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: theme.accentSoft, justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
                     <Text style={{ fontSize: 20 }}>🌙</Text>
                   </View>
                   <Text style={{ fontSize: 17, fontWeight: 'bold', color: theme.white }}>Tema Claro / Escuro</Text>
@@ -1600,7 +1985,7 @@ function DeckListScreen({ decks = [], totalCardsCount = 0, deckStats = [] }) {
               style={{ backgroundColor: theme.blue, margin: 20, paddingVertical: 16, borderRadius: 12, alignItems: 'center' }}
               onPress={() => setHelpModalVisible(false)}
             >
-              <Text style={{ color: '#FFF', fontSize: 16, fontWeight: 'bold' }}>Entendi! 👍</Text>
+              <Text style={{ color: theme.appBarText, fontSize: 16, fontWeight: 'bold' }}>Entendi! 👍</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -1608,8 +1993,8 @@ function DeckListScreen({ decks = [], totalCardsCount = 0, deckStats = [] }) {
 
       {/* Modal de Configuração do Cronômetro */}
       <Modal visible={stopwatchModalVisible} transparent animationType="fade" onRequestClose={() => setStopwatchModalVisible(false)}>
-        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: 20 }}>
-          <View style={{ backgroundColor: theme.card, width: '100%', borderRadius: 16, padding: 20 }}>
+        <View style={{ flex: 1, backgroundColor: theme.overlay, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
+          <View style={{ backgroundColor: theme.surface, borderColor: theme.border, borderWidth: 1, width: '100%', borderRadius: 14, padding: 20 }}>
             <Text style={{ fontSize: 18, fontWeight: 'bold', color: theme.white, marginBottom: 16 }}>Configuração do Cronômetro</Text>
             
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
@@ -1617,14 +2002,14 @@ function DeckListScreen({ decks = [], totalCardsCount = 0, deckStats = [] }) {
               <Switch
                 value={showStopwatch}
                 onValueChange={setShowStopwatch}
-                trackColor={{ false: '#767577', true: theme.blue }}
-                thumbColor={showStopwatch ? '#FFF' : '#f4f3f4'}
+                trackColor={{ false: theme.border, true: theme.accent }}
+                thumbColor={theme.appBarText}
               />
             </View>
 
             <View style={{ flexDirection: 'row', justifyContent: 'flex-end' }}>
-              <TouchableOpacity style={{ backgroundColor: theme.blue, paddingVertical: 12, paddingHorizontal: 20, borderRadius: 8 }} onPress={() => setStopwatchModalVisible(false)}>
-                <Text style={{ color: '#FFF', fontWeight: 'bold' }}>Fechar</Text>
+              <TouchableOpacity style={{ backgroundColor: theme.appBar, minHeight: 44, justifyContent: 'center', paddingHorizontal: 20, borderRadius: 8 }} onPress={() => setStopwatchModalVisible(false)}>
+                <Text style={{ color: theme.appBarText, fontWeight: 'bold' }}>Fechar</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -1634,235 +2019,6 @@ function DeckListScreen({ decks = [], totalCardsCount = 0, deckStats = [] }) {
     </View>
   );
 }
-
-const localStyles = StyleSheet.create({
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 15,
-    paddingHorizontal: 20,
-  },
-  headerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#333',
-  },
-  headerRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  iconButton: {
-    padding: 2,
-  },
-  greetingSection: {
-    marginTop: 10,
-    marginBottom: 20,
-    paddingHorizontal: 20,
-  },
-  greetingText: {
-    fontSize: 32,
-    fontWeight: '800',
-    color: '#1A1A1A',
-    lineHeight: 40,
-  },
-  searchInput: {
-    backgroundColor: '#FFF',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 12,
-    marginHorizontal: 20,
-    fontSize: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
-  },
-  actionRowWrapper: {
-    paddingHorizontal: 20,
-    marginBottom: 20,
-  },
-  chipBtn: {
-    backgroundColor: '#FFF',
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
-  },
-  chipText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#555',
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-end',
-    marginBottom: 15,
-    paddingHorizontal: 20,
-  },
-  sectionTitle: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: '#333',
-  },
-  sectionSubtitle: {
-    fontSize: 14,
-    color: '#888',
-    fontWeight: '500',
-    marginBottom: 2,
-  },
-  listContent: {
-    paddingBottom: 100,
-    paddingHorizontal: 20,
-    gap: 15,
-  },
-  card: {
-    flexDirection: 'row',
-    backgroundColor: '#FFF',
-    borderRadius: 16,
-    padding: 16,
-    borderLeftWidth: 6,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  cardContent: {
-    flex: 1,
-    justifyContent: 'center',
-  },
-  cardHeader: {
-    marginBottom: 12,
-  },
-  sortRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
-    marginHorizontal: 20,
-    marginBottom: 16,
-  },
-  sortButton: {
-    backgroundColor: '#F4F6F8',
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 20,
-  },
-  sortButtonActive: {
-    backgroundColor: '#2196F3',
-  },
-  sortButtonText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#444',
-  },
-  sortButtonTextActive: {
-    color: '#FFF',
-  },
-  cardTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 4,
-  },
-  cardSubtitle: {
-    fontSize: 14,
-    color: '#777',
-    fontWeight: '500',
-  },
-  priorityRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginTop: 4,
-  },
-  priorityBadge: {
-    backgroundColor: '#E3F2FD',
-    borderRadius: 12,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-  },
-  priorityText: {
-    color: '#0D47A1',
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  progressContainer: {
-    marginTop: 4,
-  },
-  progressBarBackground: {
-    height: 8,
-    backgroundColor: '#EEEEEE',
-    borderRadius: 4,
-    overflow: 'hidden',
-    width: '90%',
-  },
-  progressBarFill: {
-    height: '100%',
-    borderRadius: 4,
-  },
-  cardRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  progressCircle: {
-    width: 45,
-    height: 45,
-    borderRadius: 22.5,
-    borderWidth: 3,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  progressCircleText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#333',
-  },
-  footer: {
-    paddingVertical: 20,
-    paddingHorizontal: 20,
-    alignItems: 'center',
-    position: 'absolute',
-    bottom: 0,
-    width: '100%',
-    backgroundColor: 'rgba(248, 249, 250, 0.9)',
-  },
-  createButton: {
-    backgroundColor: '#2196F3',
-    paddingVertical: 16,
-    paddingHorizontal: 40,
-    borderRadius: 30,
-    width: '100%',
-    alignItems: 'center',
-    shadowColor: '#2196F3',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 5,
-  },
-  createButtonText: {
-    color: '#FFF',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-});
 
 const DeckListScreenWrapper = (props) => {
   const { data: decks } = useLiveQuery(db.select().from(sets).orderBy(asc(sets.priority), asc(sets.title)));

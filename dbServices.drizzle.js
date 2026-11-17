@@ -19,7 +19,7 @@ export async function createDeck(title, description = '', frontLanguage = 'pt-BR
     priority: 0,
   });
   const rows = await db.select().from(sets).where(eq(sets.id, id));
-  return rows[0] || { id, title, description, frontLanguage, backLanguage, next_review_date: 0, totalReviews: 0, priority: 0 };
+  return rows[0] || { id, title, description, frontLanguage, backLanguage, next_review_date: 0, last_review_date: 0, totalReviews: 0, priority: 0 };
 }
 
 export async function updateDeck(deckId, title, description, frontLanguage, backLanguage) {
@@ -68,7 +68,16 @@ export async function updateCardDifficulty(cardId, difficulty) {
     difficultyStatus: difficulty,
   }).where(eq(cards.id, cardId)).returning();
 
-  await db.update(sets).set({ totalReviews: sql`totalReviews + 1` }).where(eq(sets.id, card.set_id)).returning();
+  // Buscar o menor next_review_date entre todos os cards deste set
+  const minDateResult = await db.select({ minDate: sql`min(${cards.next_review_date})`.mapWith(Number) })
+    .from(cards).where(eq(cards.set_id, card.set_id));
+  const minDate = minDateResult[0]?.minDate || 0;
+
+  await db.update(sets).set({ 
+    totalReviews: sql`totalReviews + 1`,
+    next_review_date: minDate,
+    last_review_date: Date.now()
+  }).where(eq(sets.id, card.set_id)).returning();
 }
 
 export async function updateCard(cardId, front, back) {
@@ -115,6 +124,7 @@ export async function saveCycleConfig(config) {
     globalTagLimit: config.globalTagLimit,
     surpriseTagsCount: config.surpriseTagsCount,
     cardsPerSurpriseTag: config.cardsPerSurpriseTag,
+    apenasNaoAprendidosObrigatorio: config.apenasNaoAprendidosObrigatorio ? 1 : 0,
   };
 
   if (existing) {
@@ -152,12 +162,12 @@ export async function buildCycleCards(config) {
   const idsAtrasadosSet = new Set();
 
   // 1. CONJUNTOS ATRASADOS
-  // Pega os N conjuntos com next_review_date mais antigo (mais atrasados)
+  // Pega os N conjuntos com next_review_date antigo (atrasados), porém ordenados pelo menos recentemente revisado
   const now = Date.now();
   const setsAtrasados = await db.select()
     .from(sets)
     .where(sql`${sets.next_review_date} <= ${now}`)
-    .orderBy(sql`${sets.next_review_date} ASC`)
+    .orderBy(sql`${sets.last_review_date} ASC`)
     .limit(config.qtdConjuntosAtrasados);
 
   for (const s of setsAtrasados) {
@@ -208,6 +218,7 @@ export async function buildCycleCards(config) {
 
   const setsOrdenados = statsAll
     .map(s => ({ ...s, pct: s.total > 0 ? (s.memorized || 0) / s.total : 0, priority: s.priority ?? 9999 }))
+    .filter(s => s.pct < 1) // Ignora conjuntos 100% aprendidos
     .sort((a, b) => {
       return a.priority - b.priority;
     });
@@ -215,9 +226,15 @@ export async function buildCycleCards(config) {
   let obrigatoriosRestantes = config.cardsPorConjuntoObrigatorio;
   for (const s of setsOrdenados) {
     if (obrigatoriosRestantes <= 0) break;
+    
+    let queryCond = sql`${cards.set_id} = ${s.setId}`;
+    if (config.apenasNaoAprendidosObrigatorio) {
+      queryCond = sql`${cards.set_id} = ${s.setId} AND ${cards.difficultyStatus} NOT IN ('good', 'easy')`;
+    }
+
     const cardsDoSet = await db.select()
       .from(cards)
-      .where(eq(cards.set_id, s.setId))
+      .where(queryCond)
       .orderBy(sql`${cards.next_review_date} ASC`)
       .limit(obrigatoriosRestantes);
 
@@ -259,7 +276,8 @@ export async function buildCycleCards(config) {
   if (config.conjuntosFixosSelecionados && config.conjuntosFixosSelecionados.length > 0) {
     const setsFixos = await db.select()
       .from(sets)
-      .where(inArray(sets.id, config.conjuntosFixosSelecionados));
+      .where(inArray(sets.id, config.conjuntosFixosSelecionados))
+      .orderBy(sql`${sets.last_review_date} ASC`);
     
     setsFixosFiltrados = setsFixos
       .filter(s => !idsAtrasadosSet.has(s.id))
@@ -267,7 +285,7 @@ export async function buildCycleCards(config) {
   } else {
     const setsFixos = await db.select()
       .from(sets)
-      .orderBy(sql`${sets.next_review_date} ASC`)
+      .orderBy(sql`${sets.last_review_date} ASC`)
       .limit(config.qtdConjuntosFixosPorCiclo + setsAtrasados.length);
 
     setsFixosFiltrados = setsFixos
@@ -369,11 +387,115 @@ export async function seedInitialData() {
   const existingCards = await db.select().from(cards);
 
   if (existingSets.length === 0 && existingCards.length === 0) {
-    console.log('Banco de dados vazio. Semeando dados iniciais...');
-    const deck = await createDeck('Inglês Essencial', 'Vocabulário básico', 'en-US', 'pt-BR');
-    await createCard(deck.id, 'Apple', 'Maçã');
-    await createCard(deck.id, 'House', 'Casa');
-    await createCard(deck.id, 'Watermelon', 'Melancia');
-    console.log('Dados semeados com sucesso!');
+    console.log('Banco de dados vazio. Semeando dados iniciais (Amostra)...');
+    const deck = await createDeck('🚀 Amostra: Inglês Básico', 'Conjunto de teste para conhecer o potencial do app.', 'en-US', 'pt-BR');
+    
+    const sampleCards = [
+      // Casa e objetos
+      { f: 'House', b: 'Casa 🏠' },
+      { f: 'Door', b: 'Porta 🚪' },
+      { f: 'Window', b: 'Janela 🪟' },
+      { f: 'Bed', b: 'Cama 🛏️' },
+      { f: 'Chair', b: 'Cadeira 🪑' },
+      { f: 'Sofa', b: 'Sofá 🛋️' },
+      { f: 'Table', b: 'Mesa 🪵' },
+      { f: 'Lamp', b: 'Lâmpada 💡' },
+      { f: 'Mirror', b: 'Espelho 🪞' },
+      { f: 'Broom', b: 'Vassoura 🧹' },
+      { f: 'Basket', b: 'Cesta 🧺' },
+      { f: 'Fridge', b: 'Geladeira 🧊' },
+      { f: 'Stove', b: 'Fogão 🔥' },
+      { f: 'Plate', b: 'Prato 🍽️' },
+      { f: 'Spoon', b: 'Colher 🥄' },
+      { f: 'Fork', b: 'Garfo 🍴' },
+      { f: 'Knife', b: 'Faca 🔪' },
+      { f: 'Glass', b: 'Copo 🥛' },
+      { f: 'Cup', b: 'Xícara ☕' },
+      { f: 'Towel', b: 'Toalha 🧻' },
+
+      // Animais
+      { f: 'Dog', b: 'Cachorro 🐶' },
+      { f: 'Cat', b: 'Gato 🐱' },
+      { f: 'Mouse', b: 'Rato 🐭' },
+      { f: 'Hamster', b: 'Hamster 🐹' },
+      { f: 'Rabbit', b: 'Coelho 🐰' },
+      { f: 'Fox', b: 'Raposa 🦊' },
+      { f: 'Bear', b: 'Urso 🐻' },
+      { f: 'Lion', b: 'Leão 🦁' },
+      { f: 'Tiger', b: 'Tigre 🐯' },
+      { f: 'Elephant', b: 'Elefante 🐘' },
+      { f: 'Giraffe', b: 'Girafa 🦒' },
+      { f: 'Monkey', b: 'Macaco 🐒' },
+      { f: 'Horse', b: 'Cavalo 🐴' },
+      { f: 'Cow', b: 'Vaca 🐮' },
+      { f: 'Pig', b: 'Porco 🐷' },
+      { f: 'Chicken', b: 'Galinha 🐔' },
+      { f: 'Sheep', b: 'Ovelha 🐑' },
+      { f: 'Goat', b: 'Cabra 🐐' },
+      { f: 'Snake', b: 'Cobra 🐍' },
+      { f: 'Fish', b: 'Peixe 🐟' },
+
+      // Comida e bebida
+      { f: 'Apple', b: 'Maçã 🍎' },
+      { f: 'Banana', b: 'Banana 🍌' },
+      { f: 'Orange', b: 'Laranja 🍊' },
+      { f: 'Grape', b: 'Uva 🍇' },
+      { f: 'Strawberry', b: 'Morango 🍓' },
+      { f: 'Watermelon', b: 'Melancia 🍉' },
+      { f: 'Bread', b: 'Pão 🍞' },
+      { f: 'Cheese', b: 'Queijo 🧀' },
+      { f: 'Egg', b: 'Ovo 🥚' },
+      { f: 'Chicken', b: 'Frango 🍗' },
+      { f: 'Rice', b: 'Arroz 🍚' },
+      { f: 'Meat', b: 'Carne 🥩' },
+      { f: 'Potato', b: 'Batata 🥔' },
+      { f: 'Carrot', b: 'Cenoura 🥕' },
+      { f: 'Milk', b: 'Leite 🥛' },
+      { f: 'Water', b: 'Água 💧' },
+      { f: 'Coffee', b: 'Café ☕' },
+      { f: 'Tea', b: 'Chá 🍵' },
+      { f: 'Chocolate', b: 'Chocolate 🍫' },
+      { f: 'Cake', b: 'Bolo 🍰' },
+
+      // Pessoas e corpo
+      { f: 'Man', b: 'Homem 👨' },
+      { f: 'Woman', b: 'Mulher 👩' },
+      { f: 'Boy', b: 'Menino 👦' },
+      { f: 'Girl', b: 'Menina 👧' },
+      { f: 'Baby', b: 'Bebê 👶' },
+      { f: 'Family', b: 'Família 👨‍👩‍👧' },
+      { f: 'Father', b: 'Pai 👨' },
+      { f: 'Mother', b: 'Mãe 👩' },
+      { f: 'Brother', b: 'Irmão 👦' },
+      { f: 'Sister', b: 'Irmã 👧' },
+      { f: 'Friend', b: 'Amigo 👤' },
+      { f: 'Person', b: 'Pessoa 👤' },
+      { f: 'Eye', b: 'Olho 👁️' },
+      { f: 'Ear', b: 'Orelha 👂' },
+      { f: 'Nose', b: 'Nariz 👃' },
+      { f: 'Mouth', b: 'Boca 👄' },
+      { f: 'Tooth', b: 'Dente 🦷' },
+      { f: 'Hair', b: 'Cabelo 💇' },
+      { f: 'Hand', b: 'Mão ✋' },
+      { f: 'Foot', b: 'Pé 🦶' },
+
+      // Lugares, transporte e natureza
+      { f: 'City', b: 'Cidade 🏙️' },
+      { f: 'Home', b: 'Lar 🏡' },
+      { f: 'School', b: 'Escola 🏫' },
+      { f: 'Hospital', b: 'Hospital 🏥' },
+      { f: 'Store', b: 'Loja 🏪' },
+      { f: 'Bank', b: 'Banco 🏦' },
+      { f: 'Car', b: 'Carro 🚗' },
+      { f: 'Bus', b: 'Ônibus 🚌' },
+      { f: 'Train', b: 'Trem 🚆' },
+      { f: 'Airplane', b: 'Avião ✈️' }
+    ];
+
+    for (const c of sampleCards) {
+      await createCard(deck.id, c.f, c.b);
+    }
+    
+    console.log('Dados de amostra semeados com sucesso!');
   }
 }

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useContext, useState } from 'react';
 import {
   Alert,
   Modal,
@@ -11,8 +11,10 @@ import {
 } from 'react-native';
 import db from '../../db';
 import { sets } from '../../db/schema';
+import { AppContext } from '../context/AppContext';
 
 export default function CreateDeckModal({ visible, onClose, onCreated }) {
+  const { theme } = useContext(AppContext);
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -55,38 +57,38 @@ export default function CreateDeckModal({ visible, onClose, onCreated }) {
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <View style={styles.overlay}>
-        <View style={styles.modalBox}>
-          <Text style={styles.modalTitle}>Novo Conjunto</Text>
+      <View style={[styles.overlay, { backgroundColor: theme.overlay }]}>
+        <View style={[styles.modalBox, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+          <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>Novo Conjunto</Text>
           
           <TextInput
-            style={styles.input}
+            style={[styles.input, { backgroundColor: theme.bg, color: theme.textPrimary, borderColor: theme.border }]}
             placeholder="Nome do conjunto (ex: Inglês Básico)"
-            placeholderTextColor="#666"
+            placeholderTextColor={theme.textSecondary}
             value={name}
             onChangeText={setName}
             autoFocus
           />
           
           <TextInput
-            style={[styles.input, { marginTop: 12 }]}
+            style={[styles.input, { marginTop: 12, backgroundColor: theme.bg, color: theme.textPrimary, borderColor: theme.border }]}
             placeholder="Descrição opcional"
-            placeholderTextColor="#666"
+            placeholderTextColor={theme.textSecondary}
             value={description}
             onChangeText={setDescription}
           />
 
           <View style={styles.actions}>
             <TouchableOpacity onPress={onClose} disabled={isSubmitting}>
-              <Text style={styles.btnCancel}>Cancelar</Text>
+              <Text style={[styles.btnCancel, { color: theme.textSecondary }]}>Cancelar</Text>
             </TouchableOpacity>
 
             <TouchableOpacity onPress={handleCreateSet} disabled={isSubmitting || !name.trim()}>
-              <View style={[styles.btnConfirm, (!name.trim() || isSubmitting) && styles.btnDisabled]}>
+              <View style={[styles.btnConfirm, { backgroundColor: theme.appBar }, (!name.trim() || isSubmitting) && { backgroundColor: theme.border }]}>
                 {isSubmitting ? (
-                  <ActivityIndicator color="#FFF" size="small" />
+                  <ActivityIndicator color={theme.appBarText} size="small" />
                 ) : (
-                  <Text style={styles.btnConfirmText}>Criar</Text>
+                  <Text style={[styles.btnConfirmText, { color: theme.appBarText }]}>Criar</Text>
                 )}
               </View>
             </TouchableOpacity>
@@ -98,13 +100,13 @@ export default function CreateDeckModal({ visible, onClose, onCreated }) {
 }
 
 const styles = StyleSheet.create({
-  overlay: { flex: 1, backgroundColor: '#000000aa', justifyContent: 'center', alignItems: 'center' },
-  modalBox: { backgroundColor: '#2A2A2A', borderRadius: 16, padding: 24, width: '85%' },
-  modalTitle: { color: '#FFFFFF', fontWeight: 'bold', fontSize: 18, marginBottom: 16 },
-  input: { color: '#FFFFFF', backgroundColor: '#1E1E1E', borderRadius: 8, padding: 12, fontSize: 15 },
+  overlay: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  modalBox: { borderWidth: 1, borderRadius: 14, padding: 24, width: '85%' },
+  modalTitle: { fontWeight: 'bold', fontSize: 18, marginBottom: 16 },
+  input: { borderWidth: 1, borderRadius: 8, padding: 12, fontSize: 15, minHeight: 44 },
   actions: { flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', marginTop: 24, gap: 16 },
-  btnCancel: { color: '#888888', fontSize: 15, paddingHorizontal: 8 },
-  btnConfirm: { backgroundColor: '#3B9EFF', borderRadius: 8, paddingHorizontal: 20, paddingVertical: 10, justifyContent: 'center', alignItems: 'center' },
-  btnDisabled: { backgroundColor: '#555555' },
-  btnConfirmText: { color: '#FFFFFF', fontWeight: 'bold', fontSize: 15 },
+  btnCancel: { fontSize: 15, paddingHorizontal: 8, minHeight: 44, textAlignVertical: 'center' },
+  btnConfirm: { borderRadius: 8, paddingHorizontal: 20, paddingVertical: 10, justifyContent: 'center', alignItems: 'center', minHeight: 44 },
+  btnDisabled: { opacity: 0.55 },
+  btnConfirmText: { fontWeight: 'bold', fontSize: 15 },
 });

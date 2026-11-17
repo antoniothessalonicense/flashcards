@@ -1,6 +1,5 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, ScrollView, Modal, StyleSheet } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Badge } from './Shared';
 
 export const MENU_ITEMS = [
@@ -28,12 +27,12 @@ export default function MenuScreen({ visible, onClose, onMenuItemPress, isDark, 
     <Modal visible={visible} animationType="fade" transparent onRequestClose={onClose}>
       <View style={styles.modalOverlay}>
         <View style={[styles.menuContainer, { backgroundColor: C.card }]}>
-          <LinearGradient colors={['#009688', '#4CAF50', '#607D8B']} style={styles.menuHeader}>
+          <View style={[styles.menuHeader, { backgroundColor: C.appBar }]}>
             <View style={styles.avatar}><Text style={[styles.avatarText, { color: C.white }]}>A</Text></View>
             <View style={{ marginTop: 6 }}><Badge color={C.blue} theme={theme}>PRO</Badge></View>
             <Text style={[styles.menuName, { color: C.white }]}>Antonio Thessalonicense M Monteiro</Text>
             <Text style={styles.menuEmail}>antoniomartinsbr@gmail.com</Text>
-          </LinearGradient>
+          </View>
           <ScrollView>
             {MENU_ITEMS.map((item, i) =>
               item === null ? (
@@ -53,10 +52,10 @@ export default function MenuScreen({ visible, onClose, onMenuItemPress, isDark, 
             <Text style={[styles.menuVersion, { color: C.gray }]}>Versão: 1.0</Text>
           </ScrollView>
         </View>
-        <TouchableOpacity style={styles.menuOverRight} onPress={onClose} />
+        <TouchableOpacity style={[styles.menuOverRight, { backgroundColor: C.overlay }]} onPress={onClose} />
       </View>
     </Modal>
   );
 }
 
-const styles = StyleSheet.create({ modalOverlay: { flex: 1, flexDirection: 'row' }, menuContainer: { width: '78%', height: '100%' }, menuOverRight: { flex: 1, backgroundColor: '#00000066' }, menuHeader: { padding: 20, paddingTop: 44 }, avatar: { width: 52, height: 52, borderRadius: 26, backgroundColor: '#FF9800', justifyContent: 'center', alignItems: 'center', marginBottom: 8 }, avatarText: { fontSize: 22, fontWeight: 'bold' }, menuName: { fontWeight: 'bold', fontSize: 16, marginTop: 6 }, menuEmail: { color: '#ffffffaa', fontSize: 12, marginTop: 2 }, menuItem: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14 }, menuItemIcon: { width: 22, fontSize: 16 }, menuItemText: { fontSize: 14, marginLeft: 12 }, menuSep: { height: 1, marginVertical: 4 }, menuVersion: { fontSize: 12, textAlign: 'center', padding: 16 } });
+const styles = StyleSheet.create({ modalOverlay: { flex: 1, flexDirection: 'row' }, menuContainer: { width: '78%', height: '100%' }, menuOverRight: { flex: 1 }, menuHeader: { padding: 20, paddingTop: 44 }, avatar: { width: 52, height: 52, borderRadius: 26, justifyContent: 'center', alignItems: 'center', marginBottom: 8 }, avatarText: { fontSize: 22, fontWeight: 'bold' }, menuName: { fontWeight: 'bold', fontSize: 16, marginTop: 6 }, menuEmail: { fontSize: 12, marginTop: 2 }, menuItem: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14 }, menuItemIcon: { width: 22, fontSize: 16 }, menuItemText: { fontSize: 14, marginLeft: 12 }, menuSep: { height: 1, marginVertical: 4 }, menuVersion: { fontSize: 12, textAlign: 'center', padding: 16 } });
